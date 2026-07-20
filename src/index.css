@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* ============================================================
+   设计令牌（Vercel / Linear 类 B 端 SaaS 控制台风格）
+   克制主色：以黑 / 白 / 灰为基础，语义色仅用于状态。
+   ============================================================ */
+:root {
+  --bg: #fafafa;          /* 应用画布：极浅灰 */
+  --panel: #ffffff;       /* 卡片 / 表格底 */
+  --panel-muted: #f7f7f8; /* 表头 / 次级底 */
+  --border: #ececec;      /* 细边框：低对比 */
+  --border-strong: #e0e0e0;
+  --fg: #171717;          /* 主文字：近黑 */
+  --fg-secondary: #4b5563;
+  --fg-muted: #6b7280;    /* 次要文字 */
+  --fg-subtle: #9ca3af;   /* 弱信息 */
+  --accent: #171717;      /* 强调色：近黑（Vercel 风） */
+  --accent-hover: #000000;
+  --accent-fg: #ffffff;
+  --ring: rgba(0, 0, 0, 0.08);
+  --radius: 8px;
+  --radius-sm: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto,
+    'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+}
+
+::selection {
+  background: #171717;
+  color: #ffffff;
+}
+
+/* 细滚动条，贴合 SaaS 控制台观感 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d8d8d8;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #bdbdbd;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ============================================================
+   共享组件类：供 ui.jsx 与各页面复用，统一控件观感
+   ============================================================ */
+
+/* 轻量输入 / 下拉：紧凑、细边框、克制的聚焦环 */
+.ui-input {
+  height: 32px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--fg);
+  background: #ffffff;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.ui-input::placeholder {
+  color: var(--fg-subtle);
+}
+.ui-input:focus {
+  outline: none;
+  border-color: #a3a3a3;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* 文字链接 / 行内操作：克制的近黑，hover 下划线 */
+.ui-link {
+  color: var(--fg-secondary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.ui-link:hover {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: #d1d5db;
+}

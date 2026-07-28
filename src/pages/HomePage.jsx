@@ -1,57 +1,87 @@
-// 首页（评审版）：产品入口 / 启动页 —— 仅展示 平台定位 + 生命周期流程 + 底部轻量说明。
-// 不做核心数据 KPI / 最近动态 / 模块入口（这些统一在看板中心）。
-import { erpSyncMeta } from '../data/mockData';
+import { Card, Chip, Section } from '../components/ui';
 
-// 平台高层级生命周期流程（产品落地页视角）：每个节点一句话描述。
-const FLOW = [
-  { title: 'ERP 单据同步', desc: '同步采购、生产、出入库、检验、服务交付等 ERP 源单据。' },
-  { title: '项目关联', desc: '将 ERP 项目、生产订单、服务交付等源单据关联到平台项目视图。' },
-  { title: '生产过程补充', desc: '补充设备 SN、装配、测试、返修等 ERP 不覆盖的过程记录。' },
-  { title: '交付执行补充', desc: '补充现场部署、资料上传、异常记录和交付过程信息。' },
-  { title: '在线运营', desc: '基于设备 SN 汇总在线状态、告警和运行记录。' },
-  { title: '问题池 / 售后工单', desc: '承接问题上报、技术客服预处理、现场服务和换件闭环。' },
-  { title: '设备履历 / 质量追溯', desc: '沉淀设备、模块、项目、ERP 单据、问题和售后的完整链路。' },
+const STAGES = [
+  { title: '生产制造', desc: '设备建档、生产流转、测试结果及返修 / 换件信息沉淀。', current: true },
+  { title: '入库与设备履历', desc: 'ERP 产品入库关联、设备台账与单台设备详情。', current: true },
+  { title: '项目交付', desc: '项目、点位、设备归属与轻量交付执行。', current: true },
+  { title: '运营售后', desc: '交付异常、问题处理与售后管理。', current: false },
+  { title: '质量分析与持续改进', desc: '质量追溯、数据统计与看板分析。', current: false },
 ];
+
+const PLANNED = ['交付管理深化', '售后管理', '看板分析', '系统管理增强', '物料零部件追溯评估'];
 
 export default function HomePage() {
   return (
     <div className="p-6 md:p-10 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        {/* 1. 平台标题区 */}
-        <div className="text-center pt-8 md:pt-16">
-          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">
-            设备全生命周期质量管理平台
-          </h1>
-          <p className="text-sm text-gray-500 mt-4 max-w-3xl mx-auto leading-relaxed">
-            基于 ERP 源单据、设备 SN、现场过程记录和售后闭环，实现设备从生产、交付、运营到售后的统一追溯。
+      <div className="max-w-6xl mx-auto space-y-8">
+        <div className="pt-5 md:pt-10">
+          <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">设备全生命周期质量管理平台</h1>
+          <p className="text-sm text-gray-500 mt-3 max-w-3xl leading-7">
+            围绕设备 SN，统一沉淀设备从生产、入库、交付到售后质量追溯的关键过程信息。
           </p>
         </div>
 
-        {/* 2. 生命周期流程展示 */}
-        <div className="mt-14 md:mt-20 overflow-x-auto">
-          <div className="flex items-stretch gap-2 min-w-max mx-auto w-fit pb-2">
-            {FLOW.map((node, i) => (
-              <div key={node.title} className="flex items-stretch">
-                <div className="w-48 flex flex-col rounded-xl border border-[#ececec] bg-white px-4 py-5">
-                  <div className="text-sm font-semibold text-gray-800">{node.title}</div>
-                  <div className="text-[13px] text-gray-500 mt-2 leading-relaxed">{node.desc}</div>
+        <Section title="生命周期总览" subtitle="以设备 SN 为主线，按业务大阶段沉淀关键结果">
+          <div className="flex items-stretch overflow-x-auto pb-2">
+            {STAGES.map((stage, index) => (
+              <div key={stage.title} className="flex items-stretch flex-shrink-0">
+                <div className={`w-48 border rounded-lg p-4 ${stage.current ? 'border-gray-300 bg-white' : 'border-gray-200 bg-gray-50'}`}>
+                  <h2 className={`text-[13px] font-semibold break-keep leading-5 min-h-10 ${stage.current ? 'text-gray-800' : 'text-gray-500'}`}>{stage.title}</h2>
+                  <div className="mt-2">
+                    <Chip className="whitespace-nowrap" tone={stage.current ? 'solid' : 'neutral'}>{stage.current ? '当前已覆盖' : '规划中'}</Chip>
+                  </div>
+                  <p className={`text-xs leading-5 mt-3 ${stage.current ? 'text-gray-500' : 'text-gray-400'}`}>{stage.desc}</p>
                 </div>
-                {i < FLOW.length - 1 && (
-                  <span className="self-center text-gray-300 text-xl px-1.5 flex-shrink-0">→</span>
-                )}
+                {index < STAGES.length - 1 && <span className="self-center px-2 text-gray-300">→</span>}
               </div>
             ))}
           </div>
+        </Section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-800">当前重点建设</h2>
+              <Chip tone="solid">重点建设</Chip>
+            </div>
+            <p className="text-[13px] text-gray-600 leading-6 mt-3">
+              当前版本重点打通设备 SN 主线，覆盖设备建档、生产流转、ERP 产品入库关联、设备详情、项目点位和轻量交付执行，形成基础追溯链路。
+            </p>
+          </Card>
+          <Card className="bg-gray-50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700">后续规划能力</h2>
+              <Chip>规划中</Chip>
+            </div>
+            <p className="text-[13px] text-gray-500 leading-6 mt-3">
+              后续将逐步补充交付管理深化、售后管理、看板分析和系统管理增强等能力。
+            </p>
+            <div className="flex flex-wrap gap-2 mt-4">
+              {PLANNED.map((item) => <Chip key={item} className="text-gray-400">{item}</Chip>)}
+            </div>
+          </Card>
         </div>
 
-        {/* 3. 底部轻量信息 */}
-        <div className="mt-16 md:mt-24 pt-6 border-t border-[#ececec]">
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-400">
-            <span>最近 ERP 同步时间：{erpSyncMeta.lastSyncTime}</span>
-            <span>当前原型版本：R6-A（原型演示）</span>
-            <span>数据来源说明：当前为 mock 数据，ERP 字段按真实账号字段整理。</span>
+        <Section title="数据边界" subtitle="ERP、飞书与平台各自承接明确职责">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <h2 className="text-[13px] font-semibold text-gray-800">ERP</h2>
+              <p className="text-xs text-gray-500 leading-5 mt-2">正式业务单据和库存主账来源。平台只读查看，不写入单据或库存。</p>
+            </div>
+            <div>
+              <h2 className="text-[13px] font-semibold text-gray-800">飞书</h2>
+              <p className="text-xs text-gray-500 leading-5 mt-2">继续承接复杂生产明细、图片、视频、日志和附件。</p>
+            </div>
+            <div>
+              <h2 className="text-[13px] font-semibold text-gray-800">平台</h2>
+              <p className="text-xs text-gray-500 leading-5 mt-2">维护设备档案、生产关键结果、来源链接、项目点位和轻量交付执行。</p>
+            </div>
           </div>
-        </div>
+        </Section>
+
+        <p className="text-xs text-gray-400 border-t border-[#ececec] pt-5">
+          当前为前端原型与 mock 数据；ERP 为正式单据及库存主账来源，平台仅只读展示明确关联信息。
+        </p>
       </div>
     </div>
   );

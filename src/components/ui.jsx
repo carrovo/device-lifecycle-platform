@@ -2,6 +2,8 @@
 // 统一页面标题区 / 卡片 / 表格 / 筛选条 / 按钮 / 详情键值区的观感。
 // 主色克制为近黑（#171717），边框细、圆角轻、状态用小 badge/chip 表达。
 import { Link } from 'react-router-dom';
+import { Children, useState } from 'react';
+import { Pagination } from './Pagination';
 
 /* ── 页面容器 + 标题区 ───────────────────────────── */
 export function Page({ children, className = '' }) {
@@ -162,8 +164,25 @@ export function EmptyState({ children = '暂无数据', className = '' }) {
 
 /* ── 数据表格（紧凑、细分割线、浅表头） ───────────────── */
 export function Table({ head, children, empty = '暂无数据', footer, className = '' }) {
-  const rows = Array.isArray(children) ? children.filter(Boolean) : children;
-  const isEmpty = Array.isArray(rows) ? rows.length === 0 : !rows;
+  const [autoPage, setAutoPage] = useState(1);
+  const [autoPageSize, setAutoPageSize] = useState(10);
+  const rows = Children.toArray(children).filter(Boolean);
+  const isEmpty = rows.length === 0;
+  const autoTotalPages = Math.max(1, Math.ceil(rows.length / autoPageSize));
+  const currentAutoPage = Math.min(autoPage, autoTotalPages);
+  const displayedRows = footer ? rows : rows.slice((currentAutoPage - 1) * autoPageSize, currentAutoPage * autoPageSize);
+  const autoFooter = !footer && !isEmpty
+    ? (
+      <Pagination
+        page={currentAutoPage}
+        total={rows.length}
+        totalPages={autoTotalPages}
+        pageSize={autoPageSize}
+        onChange={setAutoPage}
+        onPageSizeChange={(size) => { setAutoPageSize(size); setAutoPage(1); }}
+      />
+    )
+    : null;
   return (
     <div className={`bg-white border border-[#ececec] rounded-lg overflow-hidden ${className}`}>
       <div className="overflow-x-auto">
@@ -178,11 +197,11 @@ export function Table({ head, children, empty = '暂无数据', footer, classNam
           <tbody className="divide-y divide-[#f2f2f2]">
             {isEmpty
               ? <tr><td colSpan={head.length} className="px-4 py-10 text-center text-gray-400">{empty}</td></tr>
-              : rows}
+              : displayedRows}
           </tbody>
         </table>
       </div>
-      {footer}
+      {footer || autoFooter}
     </div>
   );
 }

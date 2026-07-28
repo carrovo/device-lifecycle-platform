@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useRole } from '../context/RoleContext';
-import { FEISHU_USERS } from '../data/mockData';
 import Modal from './Modal';
 
 /* ── 单色线性图标（16px，stroke=currentColor）──────────────── */
@@ -12,6 +11,7 @@ const ICONS = {
   dashboard: (p) => <svg {...I(p)}><path d="M4 13h6v7H4z" /><path d="M14 4h6v16h-6z" /><path d="M4 4h6v5H4z" /></svg>,
   projects: (p) => <svg {...I(p)}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>,
   assets: (p) => <svg {...I(p)}><path d="M12 3 3 7.5v9L12 21l9-4.5v-9z" /><path d="m3 7.5 9 4.5 9-4.5" /><path d="M12 12v9" /></svg>,
+  production: (p) => <svg {...I(p)}><path d="M4 20V10l8-5 8 5v10" /><path d="M8 20v-6h8v6M9 9h6" /></svg>,
   aftersales: (p) => <svg {...I(p)}><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.1-.4-.4-2.1z" /></svg>,
   erp: (p) => <svg {...I(p)}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /><path d="M9 13h6M9 17h6" /></svg>,
   system: (p) => <svg {...I(p)}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.2A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 1 1 0-4h.2A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 8 2.6h.1A1.7 1.7 0 0 0 9 1.1V1a2 2 0 1 1 4 0v.2A1.7 1.7 0 0 0 15 2.6a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z" /></svg>,
@@ -24,53 +24,48 @@ const NAV_ITEMS = [
   {
     label: '看板中心', base: '/dashboard', icon: 'dashboard',
     children: [
-      { label: '总览看板', to: '/dashboard?tab=overview', tab: 'overview' },
-      { label: '质量看板', to: '/dashboard?tab=quality', tab: 'quality' },
-      { label: '售后看板', to: '/dashboard?tab=aftersales', tab: 'aftersales' },
+      { label: '后续规划', to: '/dashboard', tab: null },
     ],
   },
   {
     label: 'ERP 单据中心', base: '/erp-center', icon: 'erp',
     children: [
       { label: '单据总览', to: '/erp-center?tab=overview', tab: 'overview' },
-      { label: '采购与入库', to: '/erp-center?tab=purchase', tab: 'purchase' },
-      { label: '生产与用料', to: '/erp-center?tab=production', tab: 'production' },
-      { label: '出库与交付', to: '/erp-center?tab=outbound', tab: 'outbound' },
-      { label: '检验与库存', to: '/erp-center?tab=inspection', tab: 'inspection' },
-      { label: '同步日志', to: '/erp-center?tab=synclog', tab: 'synclog' },
+      { label: 'ERP 单据列表', to: '/erp-center?tab=list', tab: 'list' },
+    ],
+  },
+  {
+    label: '生产中心', base: '/production', icon: 'production',
+    children: [
+      { label: '设备建档', to: '/production?tab=archive', tab: 'archive' },
+      { label: '生产流转', to: '/production?tab=flow', tab: 'flow' },
     ],
   },
   {
     label: '项目中心', base: '/projects', icon: 'projects', match: ['/projects', '/production-plans', '/delivery-plans'],
     children: [
       { label: '项目列表', to: '/projects?tab=list', tab: 'list' },
-      { label: '生产关联', to: '/projects?tab=production', tab: 'production' },
       { label: '交付执行', to: '/projects?tab=delivery', tab: 'delivery' },
     ],
   },
   {
-    label: '资产管理', base: '/assets', icon: 'assets', match: ['/assets', '/devices'],
+    label: '设备管理', base: '/assets', icon: 'assets', match: ['/assets', '/devices'],
     children: [
-      { label: '物料零部件', to: '/assets?tab=materials', tab: 'materials' },
       { label: '设备台账', to: '/assets?tab=devices', tab: 'devices' },
     ],
   },
   {
     label: '售后管理', base: '/after-sales', icon: 'aftersales',
     children: [
-      { label: '问题池', to: '/after-sales?tab=issues', tab: 'issues' },
-      { label: '售后工单', to: '/after-sales?tab=orders', tab: 'orders' },
-      { label: '换件记录', to: '/after-sales?tab=replacements', tab: 'replacements' },
+      { label: '后续规划', to: '/after-sales', tab: null },
     ],
   },
   {
     label: '系统管理', base: '/system', icon: 'system',
     children: [
-      { label: '用户管理', to: '/system?tab=users', tab: 'users' },
-      { label: '角色权限', to: '/system?tab=roles', tab: 'roles' },
-      { label: '字典管理', to: '/system?tab=dict', tab: 'dict' },
-      { label: '流程模板', to: '/system?tab=workflow', tab: 'workflow' },
-      { label: '通知规则', to: '/system?tab=notifications', tab: 'notifications' },
+      { label: '基础用户', to: '/system?tab=users', tab: 'users' },
+      { label: '角色识别', to: '/system?tab=roles', tab: 'roles' },
+      { label: '操作日志', to: '/system?tab=logs', tab: 'logs' },
     ],
   },
 ];
@@ -145,13 +140,9 @@ function UserRoleMenu({ currentUser, currentRole }) {
       {/* 权限说明 */}
       <Modal isOpen={dialog === 'perm'} onClose={() => setDialog(null)} title="权限说明">
         <div className="space-y-3 text-[13px] text-gray-600">
-          <p>当前角色：<span className="text-gray-800 font-medium">{roleLabel(currentRole)}</span>。角色决定可见的导航模块与可执行的操作。</p>
-          <p>数据可见范围以项目成员与角色为准：只有项目成员可以查看或操作该项目下的生产计划、交付计划、设备、点位、质量问题和工单；管理员不受此限制。</p>
-          <p className="text-gray-400 text-xs">具体的模块可见性与操作权限在「系统管理 / 权限配置」中维护。</p>
-          <div className="flex justify-end gap-2 pt-1">
-            <Link to="/system?tab=permissions" onClick={() => setDialog(null)} className="px-4 py-2 text-[13px] border border-[#e0e0e0] text-gray-600 rounded-md hover:bg-gray-50">前往权限配置</Link>
-            <button onClick={() => setDialog(null)} className="px-4 py-2 text-[13px] bg-gray-900 text-white rounded-md hover:bg-black">知道了</button>
-          </div>
+          <p>当前角色：<span className="text-gray-800 font-medium">{roleLabel(currentRole)}</span>。</p>
+          <p>当前版本仅进行基础角色识别和模块访问范围展示，未展开完整菜单、字段或数据范围权限配置。</p>
+          <div className="flex justify-end pt-1"><button onClick={() => setDialog(null)} className="px-4 py-2 text-[13px] bg-gray-900 text-white rounded-md hover:bg-black">知道了</button></div>
         </div>
       </Modal>
 
@@ -183,7 +174,7 @@ export default function Layout({ children }) {
   const location = useLocation();
   const activeTab = new URLSearchParams(location.search).get('tab');
 
-  const currentUser = FEISHU_USERS.find((u) => u.id === (state.currentUserId || 'u1')) || FEISHU_USERS[0];
+  const currentUser = state.users.find((u) => u.id === (state.currentUserId || 'u1')) || state.users[0];
 
   const visibleItems = NAV_ITEMS.filter((item) => canSeeNav(item.path || item.base));
 

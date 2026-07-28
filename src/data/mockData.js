@@ -756,16 +756,16 @@ export const ROLES_LIST = [
 ];
 
 export const ROLE_NAV_PERMISSIONS = {
-  '质检员':     ['/home', '/erp-center', '/projects', '/assets', '/after-sales'],
-  '装配工':     ['/home', '/erp-center', '/projects', '/assets'],
-  '测试员':     ['/home', '/erp-center', '/projects', '/assets'],
-  '运维工程师':  ['/home', '/dashboard', '/erp-center', '/assets', '/after-sales'],
+  '质检员':     ['/home', '/erp-center', '/production', '/projects', '/assets', '/after-sales'],
+  '装配工':     ['/home', '/erp-center', '/production', '/projects', '/assets'],
+  '测试员':     ['/home', '/erp-center', '/production', '/projects', '/assets'],
+  '运维工程师':  ['/home', '/dashboard', '/erp-center', '/production', '/projects', '/assets', '/after-sales'],
   '维修工程师':  ['/home', '/after-sales', '/assets'],
-  '项目负责人':  ['/home', '/dashboard', '/erp-center', '/projects', '/assets', '/after-sales'],
-  '厂长':       ['/home', '/dashboard', '/erp-center', '/projects', '/assets', '/after-sales'],
-  '管理员':     ['/home', '/dashboard', '/erp-center', '/projects', '/assets', '/after-sales', '/system'],
+  '项目负责人':  ['/home', '/dashboard', '/erp-center', '/production', '/projects', '/assets', '/after-sales'],
+  '厂长':       ['/home', '/dashboard', '/erp-center', '/production', '/projects', '/assets', '/after-sales'],
+  '管理员':     ['/home', '/dashboard', '/erp-center', '/production', '/projects', '/assets', '/after-sales', '/system'],
   // ERP 协同角色（生产计划 / 库管 / 供应链采购 / 质量检验 / 财务等，只读核对 ERP 单据关联）
-  'ERP协同角色': ['/home', '/erp-center', '/projects', '/assets'],
+  'ERP协同角色': ['/home', '/erp-center', '/production', '/projects', '/assets'],
 };
 
 export const ROLE_ACTION_PERMISSIONS = {

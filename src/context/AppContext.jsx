@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useReducer } from 'react';
+import { createContext, useContext, useEffect, useReducer } from 'react';
 import {
   materials as initMaterials,
   materialBatches as initMaterialBatches,
@@ -27,13 +27,46 @@ import {
   deliveryExceptions as initDeliveryExceptions,
   FEISHU_USERS,
 } from '../data/mockData';
+import { normalizePrdState } from '../data/prdV12';
 
 const AppContext = createContext(null);
+const FEISHU_STORAGE_KEY = 'device-lifecycle-feishu-records-v1';
+
+function readFeishuRecords() {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(FEISHU_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+const normalizedPrd = normalizePrdState({
+  devices: initDevices,
+  testRecords: initTestRecords,
+  deliveryPlans: initDeliveryPlans,
+  locations: initLocations,
+  deliveryExceptions: initDeliveryExceptions,
+});
+const storedFeishuRecords = readFeishuRecords();
+const devicesWithStoredFeishu = normalizedPrd.devices.map((device) => {
+  const stored = storedFeishuRecords[device.id];
+  if (!stored) return device;
+  return {
+    ...device,
+    electronicAcceptanceUrl: typeof stored.electronicAcceptanceUrl === 'string'
+      ? stored.electronicAcceptanceUrl
+      : device.electronicAcceptanceUrl,
+    otherFeishuTables: Array.isArray(stored.otherFeishuTables)
+      ? stored.otherFeishuTables.filter((item) => item?.name && !/^\d+$/.test(item.name.trim()) && item?.url)
+      : device.otherFeishuTables,
+  };
+});
 
 const initialState = {
   materials: initMaterials,
   materialBatches: initMaterialBatches,
-  devices: initDevices,
+  devices: devicesWithStoredFeishu,
   testRecords: initTestRecords,
   deviceTypes: initDeviceTypes,
   moduleTypes: initModuleTypes,
@@ -49,12 +82,13 @@ const initialState = {
   labelCategories: initLabelCategories,
   productionWorkOrders: initProductionWorkOrders,
   deliveryWorkOrders: initDeliveryWorkOrders,
-  deliveryPlans: initDeliveryPlans,
+  deliveryPlans: normalizedPrd.deliveryPlans,
   workflowProductionPlans: initWorkflowProductionPlans,
   locations: initLocations,
   qualityIssues: initQualityIssues,
   moduleInstances: initModuleInstances,
-  deliveryExceptions: initDeliveryExceptions,
+  deliveryExceptions: normalizedPrd.deliveryExceptions,
+  users: FEISHU_USERS.map((user) => ({ status: '启用', ...user, role: user.id === 'u1' ? '管理员' : user.role })),
   currentUser: '张三',
   currentUserId: 'u1',
 };
@@ -62,9 +96,17 @@ const initialState = {
 function appReducer(state, action) {
   switch (action.type) {
     case 'SET_CURRENT_USER': {
-      const user = FEISHU_USERS.find((u) => u.id === action.payload);
+      const user = state.users.find((u) => u.id === action.payload);
       return { ...state, currentUserId: action.payload, currentUser: user?.name || state.currentUser };
     }
+
+    case 'UPDATE_USER':
+      return {
+        ...state,
+        users: state.users.map((user) =>
+          user.id === action.payload.id ? { ...user, ...action.payload } : user
+        ),
+      };
 
     case 'ADD_MATERIAL':
       return { ...state, materials: [...state.materials, action.payload] };
@@ -97,6 +139,12 @@ function appReducer(state, action) {
         devices: state.devices.map((d) =>
           d.id === action.payload.id ? { ...d, ...action.payload } : d
         ),
+      };
+
+    case 'DELETE_DEVICE':
+      return {
+        ...state,
+        devices: state.devices.filter((d) => d.id !== action.payload),
       };
 
     case 'ADD_TEST_RECORD':
@@ -236,6 +284,8 @@ function appReducer(state, action) {
           ...state.deliveryPlans,
           {
             records: { binding: [], factoryInspection: [], siteInstall: [], customerAccept: [] },
+            executionRecords: [],
+            deliveryResult: null,
             boundDeviceIds: [],
             ...action.payload,
           },
@@ -248,6 +298,26 @@ function appReducer(state, action) {
         deliveryPlans: state.deliveryPlans.map((p) =>
           p.id === action.payload.id ? { ...p, ...action.payload } : p
         ),
+      };
+
+    case 'ADD_DELIVERY_EXCEPTION':
+      return {
+        ...state,
+        deliveryExceptions: [...state.deliveryExceptions, action.payload],
+      };
+
+    case 'UPDATE_DELIVERY_EXCEPTION':
+      return {
+        ...state,
+        deliveryExceptions: state.deliveryExceptions.map((item) =>
+          item.id === action.payload.id ? { ...item, ...action.payload } : item
+        ),
+      };
+
+    case 'DELETE_DELIVERY_EXCEPTION':
+      return {
+        ...state,
+        deliveryExceptions: state.deliveryExceptions.filter((item) => item.id !== action.payload),
       };
 
     case 'ADD_LABEL_CATEGORY':
@@ -296,6 +366,17 @@ function appReducer(state, action) {
 
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, initialState);
+  useEffect(() => {
+    try {
+      const records = Object.fromEntries(state.devices.map((device) => [device.id, {
+        electronicAcceptanceUrl: device.electronicAcceptanceUrl || '',
+        otherFeishuTables: device.otherFeishuTables || [],
+      }]));
+      window.localStorage.setItem(FEISHU_STORAGE_KEY, JSON.stringify(records));
+    } catch {
+      // Local persistence is best effort in the frontend prototype.
+    }
+  }, [state.devices]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

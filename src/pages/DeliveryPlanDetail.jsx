@@ -1,20 +1,24 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
-import { isProductionComplete } from '../data/prdV12';
+import { Pagination, usePaged } from '../components/Pagination';
+import { isProductionComplete, productionProgressLabel } from '../data/prdV12';
 import { deliveryErpReferences } from '../data/erpPrototype';
 import {
-  Page, PageHeader, Section, DescList, Table, Btn, Input, Select, EmptyState,
+  batchDisplayName, batchMetrics, deliveryMetrics, deliveryRelations,
+} from '../data/deliveryV2';
+import {
+  Page, PageHeader, Section, DescList, Table, Btn, Input, Select, LinkAction,
+  StatGrid, StatCard, Toolbar, SearchInput, EmptyState, CompactProgress,
 } from '../components/ui';
 
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
 const TABS = [
-  ['basic', '基础信息'],
+  ['overview', '执行概览'],
+  ['batches', '交付批次'],
   ['devices', '关联设备'],
-  ['execution', '执行记录'],
-  ['result', '交付结果'],
   ['exceptions', '交付异常'],
   ['logs', '操作日志'],
 ];
@@ -24,260 +28,21 @@ function TabBar({ active, onChange }) {
   return (
     <div className="flex flex-wrap gap-1 border-b border-gray-200">
       {TABS.map(([key, label]) => (
-        <button
-          key={key}
-          onClick={() => onChange(key)}
-          className={`px-3 py-2 text-[13px] border-b-2 ${active === key ? 'border-gray-900 text-gray-900 font-medium' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
-        >
-          {label}
-        </button>
+        <button key={key} onClick={() => onChange(key)} className={`px-3 py-2 text-[13px] border-b-2 ${active === key ? 'border-gray-900 text-gray-900 font-medium' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>{label}</button>
       ))}
     </div>
   );
 }
 
-function ResultChoice({ value, onChange }) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {['通过', '未通过'].map((option) => (
-        <button
-          type="button"
-          key={option}
-          onClick={() => onChange(option)}
-          className={`h-10 rounded-md border text-[13px] font-medium ${
-            value === option
-              ? option === '通过' ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700'
-              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          {option}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function DeviceChecks({ devices, selected, onToggle }) {
-  return (
-    <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200">
-      {devices.length ? devices.map((device) => (
-        <label key={device.id} className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
-          <input type="checkbox" checked={selected.includes(device.id)} onChange={() => onToggle(device.id)} />
-          <span className="font-mono text-xs">{device.sn}</span>
-          <span className="font-mono text-xs text-gray-400">{device.robotNo}</span>
-        </label>
-      )) : <EmptyState className="py-5">暂无可选设备</EmptyState>}
-    </div>
-  );
-}
-
-function BasicForm({ plan, state, onClose, onSave }) {
-  const references = deliveryErpReferences();
+function EditPlanForm({ plan, state, included, onClose, onSave }) {
   const [form, setForm] = useState({
-    title: plan.title || plan.name || '',
+    projectId: plan.projectId,
+    plannedCount: String(plan.plannedCount),
     owner: plan.owner || '',
+    targetDate: plan.targetDate || '',
     demandDescription: plan.demandDescription || '',
     feishuDemandUrl: plan.feishuDemandUrl || '',
     notes: plan.notes || '',
-    erpReference: plan.erpReferenceNo ? `${plan.erpReferenceType}::${plan.erpReferenceNo}` : '',
-  });
-  const [errors, setErrors] = useState({});
-  const update = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => ({ ...prev, [key]: '' }));
-  };
-  const submit = () => {
-    const next = {};
-    if (!form.title.trim()) next.title = '请填写交付执行名称。';
-    if (!form.owner) next.owner = '请选择负责人。';
-    if (form.feishuDemandUrl && !/^https?:\/\/\S+$/i.test(form.feishuDemandUrl)) next.feishuDemandUrl = '请输入有效的 http 或 https 链接。';
-    if (Object.keys(next).length) return setErrors(next);
-    const [erpReferenceType = '', erpReferenceNo = ''] = form.erpReference.split('::');
-    onSave({ ...form, erpReferenceType, erpReferenceNo });
-  };
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">交付执行名称 <span className="text-red-500">*</span></label>
-        <Input className="w-full" value={form.title} onChange={(event) => update('title', event.target.value)} />
-        {errors.title && <p className="text-xs text-red-600 mt-1">{errors.title}</p>}
-      </div>
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">负责人 <span className="text-red-500">*</span></label>
-        <Select className="w-full" value={form.owner} onChange={(event) => update('owner', event.target.value)}>
-          <option value="">请选择负责人</option>
-          {state.users.filter((item) => item.status !== '停用').map((item) => <option key={item.id} value={item.name}>{item.name} · {item.dept}</option>)}
-        </Select>
-        {errors.owner && <p className="text-xs text-red-600 mt-1">{errors.owner}</p>}
-      </div>
-      <div><label className="block text-xs text-gray-600 mb-1">交付需求说明</label><textarea className="ui-input w-full min-h-20" value={form.demandDescription} onChange={(event) => update('demandDescription', event.target.value)} /></div>
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">相关飞书需求链接</label>
-        <Input className="w-full" value={form.feishuDemandUrl} onChange={(event) => update('feishuDemandUrl', event.target.value)} placeholder="https://" />
-        {errors.feishuDemandUrl && <p className="text-xs text-red-600 mt-1">{errors.feishuDemandUrl}</p>}
-      </div>
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">ERP 销售发货单或调拨订单</label>
-        <Select className="w-full" value={form.erpReference} onChange={(event) => update('erpReference', event.target.value)}>
-          <option value="">暂不关联</option>
-          {references.map((item) => <option key={`${item.type}-${item.no}`} value={`${item.type}::${item.no}`}>{item.type} · {item.no} · {item.date}</option>)}
-        </Select>
-        <p className="text-xs text-gray-400 mt-1">仅引用当前原型已有的 ERP 只读单据。</p>
-      </div>
-      <div><label className="block text-xs text-gray-600 mb-1">备注</label><textarea className="ui-input w-full min-h-16" value={form.notes} onChange={(event) => update('notes', event.target.value)} /></div>
-      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>保存基础信息</Btn></div>
-    </div>
-  );
-}
-
-function AssociationForm({ plan, state, onClose, onSave }) {
-  const hasBusinessRecords = (plan.executionRecords || []).length > 0 || !!plan.deliveryResult;
-  const [form, setForm] = useState({
-    projectId: plan.projectId,
-    locationId: plan.locationId,
-    boundDeviceIds: plan.boundDeviceIds || [],
-    confirmed: false,
-  });
-  const [query, setQuery] = useState('');
-  const [error, setError] = useState('');
-  const locations = state.locations.filter((item) => item.projectId === form.projectId && !item.disabled);
-  const occupied = new Set(state.deliveryPlans
-    .filter((item) => item.id !== plan.id)
-    .flatMap((item) => item.boundDeviceIds || []));
-  const candidates = state.devices.filter((device) => device.projectId === form.projectId
-    && device.locationId === form.locationId
-    && device.erpInboundNo
-    && isProductionComplete(device)
-    && (!occupied.has(device.id) || (plan.boundDeviceIds || []).includes(device.id))
-    && (!query || `${device.sn} ${device.robotNo}`.toLowerCase().includes(query.toLowerCase())));
-  const relationChanged = form.projectId !== plan.projectId || form.locationId !== plan.locationId;
-  const toggle = (id) => setForm((prev) => ({
-    ...prev,
-    boundDeviceIds: prev.boundDeviceIds.includes(id)
-      ? prev.boundDeviceIds.filter((item) => item !== id)
-      : [...prev.boundDeviceIds, id],
-  }));
-  const submit = () => {
-    if (!form.projectId || !form.locationId) return setError('请选择项目和点位。');
-    if (!form.boundDeviceIds.length) return setError('请至少选择一台设备。');
-    if (hasBusinessRecords && relationChanged && !form.confirmed) return setError('已有执行记录或交付结果，请确认本次重要关系变更。');
-    onSave(form);
-  };
-  return (
-    <div className="space-y-4">
-      <p className="text-xs text-gray-500">设备必须属于所选项目和点位，并已完成生产及 ERP 产品入库关联。</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">项目</label>
-          <Select className="w-full" value={form.projectId} onChange={(event) => setForm((prev) => ({ ...prev, projectId: event.target.value, locationId: '', boundDeviceIds: [] }))}>
-            <option value="">请选择项目</option>{state.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </Select>
-        </div>
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">点位</label>
-          <Select className="w-full" value={form.locationId} onChange={(event) => setForm((prev) => ({ ...prev, locationId: event.target.value, boundDeviceIds: [] }))}>
-            <option value="">请选择点位</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </Select>
-        </div>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <label className="text-xs text-gray-600">关联设备</label>
-        <Input className="w-52" placeholder="搜索设备 SN / 机器人编号" value={query} onChange={(event) => setQuery(event.target.value)} />
-      </div>
-      <DeviceChecks devices={candidates} selected={form.boundDeviceIds} onToggle={toggle} />
-      <p className="text-xs text-gray-500">已选择 {form.boundDeviceIds.length} 台设备</p>
-      {hasBusinessRecords && relationChanged && (
-        <label className="flex items-start gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-600">
-          <input className="mt-0.5" type="checkbox" checked={form.confirmed} onChange={(event) => setForm((prev) => ({ ...prev, confirmed: event.target.checked }))} />
-          我已确认变更项目或点位，并理解已有执行记录与交付结果仍会保留。
-        </label>
-      )}
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>确认调整关联关系</Btn></div>
-    </div>
-  );
-}
-
-function ExecutionForm({ record, devices, onClose, onSave }) {
-  const [form, setForm] = useState({
-    title: record?.title || '',
-    content: record?.content || '',
-    deviceIds: record?.deviceIds || [],
-    hasException: record?.hasException || false,
-    exceptionDescription: record?.exceptionDescription || '',
-  });
-  const [errors, setErrors] = useState({});
-  const update = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => ({ ...prev, [key]: '' }));
-  };
-  const toggle = (id) => update('deviceIds', form.deviceIds.includes(id) ? form.deviceIds.filter((item) => item !== id) : [...form.deviceIds, id]);
-  const submit = () => {
-    const next = {};
-    if (!form.title.trim()) next.title = '请填写记录标题。';
-    if (!form.content.trim()) next.content = '请填写执行内容。';
-    if (form.hasException && !form.exceptionDescription.trim()) next.exceptionDescription = '存在异常时必须填写异常说明。';
-    if (Object.keys(next).length) return setErrors(next);
-    onSave(form);
-  };
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">记录标题 <span className="text-red-500">*</span></label>
-        <Input className="w-full" value={form.title} onChange={(event) => update('title', event.target.value)} />
-        {errors.title && <p className="text-xs text-red-600 mt-1">{errors.title}</p>}
-      </div>
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">执行内容 <span className="text-red-500">*</span></label>
-        <textarea className="ui-input w-full min-h-24" value={form.content} onChange={(event) => update('content', event.target.value)} />
-        {errors.content && <p className="text-xs text-red-600 mt-1">{errors.content}</p>}
-      </div>
-      <div>
-        <label className="block text-xs text-gray-600 mb-2">关联设备（选填）</label>
-        <DeviceChecks devices={devices} selected={form.deviceIds} onToggle={toggle} />
-        <p className="text-xs text-gray-400 mt-1">未选择设备时，该记录作用于当前点位。</p>
-      </div>
-      <label className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-[13px] text-gray-700">
-        <input type="checkbox" checked={form.hasException} onChange={(event) => update('hasException', event.target.checked)} />
-        存在异常
-      </label>
-      {form.hasException && (
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">异常说明 <span className="text-red-500">*</span></label>
-          <textarea className="ui-input w-full min-h-20" value={form.exceptionDescription} onChange={(event) => update('exceptionDescription', event.target.value)} />
-          {errors.exceptionDescription && <p className="text-xs text-red-600 mt-1">{errors.exceptionDescription}</p>}
-        </div>
-      )}
-      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>{record ? '保存执行记录' : '新增执行记录'}</Btn></div>
-    </div>
-  );
-}
-
-function ExecutionRecordDetail({ record, devices, onClose, onEdit, onDelete }) {
-  const related = devices.filter((device) => (record.deviceIds || []).includes(device.id));
-  return (
-    <div className="space-y-4">
-      <DescList cols={2} items={[
-        ['记录标题', record.title],
-        ['关联范围', related.length ? '具体设备' : '当前点位'],
-        ['关联设备', related.map((item) => item.sn).join('、') || '当前点位'],
-        ['包含异常信息', record.hasException ? '是' : '否'],
-        ['记录人', record.recorder || '—'],
-        ['记录时间', record.time || '—'],
-      ]} />
-      <div><p className="text-xs text-gray-500 mb-1">执行内容</p><p className="text-[13px] text-gray-700 whitespace-pre-wrap">{record.content}</p></div>
-      {record.hasException && <div><p className="text-xs text-gray-500 mb-1">异常说明</p><p className="text-[13px] text-red-700 whitespace-pre-wrap">{record.exceptionDescription}</p></div>}
-      <div className="flex justify-end gap-2"><Btn onClick={onClose}>关闭</Btn><Btn onClick={onDelete}>删除记录</Btn><Btn variant="primary" onClick={onEdit}>编辑记录</Btn></div>
-    </div>
-  );
-}
-
-function DeliveryResultForm({ current, devices, onClose, onSave }) {
-  const [form, setForm] = useState({
-    result: current?.result || '通过',
-    summary: current?.summary || '',
-    affectedDeviceIds: current?.affectedDeviceIds || [],
-    exceptionDescription: current?.exceptionDescription || '',
     modificationReason: '',
   });
   const [errors, setErrors] = useState({});
@@ -285,45 +50,150 @@ function DeliveryResultForm({ current, devices, onClose, onSave }) {
     setForm((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: '' }));
   };
-  const toggle = (id) => update('affectedDeviceIds', form.affectedDeviceIds.includes(id) ? form.affectedDeviceIds.filter((item) => item !== id) : [...form.affectedDeviceIds, id]);
+  const changedCount = Number(form.plannedCount) !== Number(plan.plannedCount);
   const submit = () => {
     const next = {};
-    if (!form.summary.trim()) next.summary = '请填写结果说明。';
-    if (form.result === '未通过' && !form.exceptionDescription.trim()) next.exceptionDescription = '交付结果未通过时必须填写异常说明。';
-    if (current && !form.modificationReason.trim()) next.modificationReason = '修改已有交付结果时必须填写修改原因。';
+    if (!Number.isInteger(Number(form.plannedCount)) || Number(form.plannedCount) <= 0) next.plannedCount = '请输入大于 0 的整数。';
+    if (Number(form.plannedCount) < included) next.plannedCount = `不能小于当前已纳入批次的 ${included} 台设备。`;
+    if (!form.owner) next.owner = '请选择交付负责人。';
+    if (form.feishuDemandUrl && !/^https?:\/\/\S+$/i.test(form.feishuDemandUrl)) next.feishuDemandUrl = '请输入有效链接。';
+    if (plan.batches.length && changedCount && !form.modificationReason.trim()) next.modificationReason = '已有批次时修改计划交付数量必须填写原因。';
     if (Object.keys(next).length) return setErrors(next);
-    onSave(form);
+    onSave({ ...form, plannedCount: Number(form.plannedCount) });
   };
   return (
     <div className="space-y-4">
-      <div><label className="block text-xs text-gray-600 mb-2">交付结果</label><ResultChoice value={form.result} onChange={(value) => update('result', value)} /></div>
-      <div>
-        <label className="block text-xs text-gray-600 mb-1">结果说明 <span className="text-red-500">*</span></label>
-        <textarea className="ui-input w-full min-h-20" value={form.summary} onChange={(event) => update('summary', event.target.value)} />
-        {errors.summary && <p className="text-xs text-red-600 mt-1">{errors.summary}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><label className="block text-xs text-gray-600 mb-1">所属项目</label><Select className="w-full" value={form.projectId} disabled={plan.batches.length > 0} onChange={(event) => update('projectId', event.target.value)}>{state.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>{plan.batches.length > 0 && <p className="text-xs text-gray-400 mt-1">已有交付批次，所属项目不可直接修改。</p>}</div>
+        <div><label className="block text-xs text-gray-600 mb-1">计划交付数量 <span className="text-red-500">*</span></label><Input className="w-full" type="number" min={Math.max(1, included)} value={form.plannedCount} onChange={(event) => update('plannedCount', event.target.value)} />{errors.plannedCount && <p className="text-xs text-red-600 mt-1">{errors.plannedCount}</p>}</div>
+        <div><label className="block text-xs text-gray-600 mb-1">交付负责人 <span className="text-red-500">*</span></label><Select className="w-full" value={form.owner} onChange={(event) => update('owner', event.target.value)}><option value="">请选择负责人</option>{state.users.filter((item) => item.status !== '停用').map((item) => <option key={item.id} value={item.name}>{item.name} · {item.dept}</option>)}</Select>{errors.owner && <p className="text-xs text-red-600 mt-1">{errors.owner}</p>}</div>
+        <div><label className="block text-xs text-gray-600 mb-1">目标完成日期</label><Input className="w-full" type="date" value={form.targetDate} onChange={(event) => update('targetDate', event.target.value)} /></div>
       </div>
-      {form.result === '未通过' && (
-        <>
-          <div>
-            <label className="block text-xs text-gray-600 mb-2">关联设备（选填）</label>
-            <DeviceChecks devices={devices} selected={form.affectedDeviceIds} onToggle={toggle} />
-            <p className="text-xs text-gray-400 mt-1">未选择设备时，异常属于当前点位或本次交付执行整体。</p>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">异常说明 <span className="text-red-500">*</span></label>
-            <textarea className="ui-input w-full min-h-20" value={form.exceptionDescription} onChange={(event) => update('exceptionDescription', event.target.value)} />
-            {errors.exceptionDescription && <p className="text-xs text-red-600 mt-1">{errors.exceptionDescription}</p>}
-          </div>
-        </>
-      )}
-      {current && (
-        <div>
-          <label className="block text-xs text-gray-600 mb-1">修改原因 <span className="text-red-500">*</span></label>
-          <textarea className="ui-input w-full min-h-20" value={form.modificationReason} onChange={(event) => update('modificationReason', event.target.value)} />
-          {errors.modificationReason && <p className="text-xs text-red-600 mt-1">{errors.modificationReason}</p>}
+      <div><label className="block text-xs text-gray-600 mb-1">交付需求说明</label><textarea className="ui-input w-full min-h-20" value={form.demandDescription} onChange={(event) => update('demandDescription', event.target.value)} /></div>
+      <div><label className="block text-xs text-gray-600 mb-1">相关飞书需求链接</label><Input className="w-full" value={form.feishuDemandUrl} onChange={(event) => update('feishuDemandUrl', event.target.value)} />{errors.feishuDemandUrl && <p className="text-xs text-red-600 mt-1">{errors.feishuDemandUrl}</p>}</div>
+      <div><label className="block text-xs text-gray-600 mb-1">备注</label><textarea className="ui-input w-full min-h-16" value={form.notes} onChange={(event) => update('notes', event.target.value)} /></div>
+      {plan.batches.length > 0 && changedCount && <div><label className="block text-xs text-gray-600 mb-1">计划数量修改原因 <span className="text-red-500">*</span></label><textarea className="ui-input w-full min-h-16" value={form.modificationReason} onChange={(event) => update('modificationReason', event.target.value)} />{errors.modificationReason && <p className="text-xs text-red-600 mt-1">{errors.modificationReason}</p>}</div>}
+      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>保存基础信息</Btn></div>
+    </div>
+  );
+}
+
+function NewBatchForm({ plan, project, state, onClose, onSave }) {
+  const projectBatches = state.deliveryPlans.filter((item) => item.projectId === plan.projectId).flatMap((item) => item.batches || []);
+  const historicalMax = Math.max(0, ...state.deliveryPlans
+    .filter((item) => item.projectId === plan.projectId)
+    .map((item) => (Number(item.nextBatchSequence) || 1) - 1));
+  const sequence = Math.max(historicalMax, ...projectBatches.map((item) => Number(item.sequence) || 0)) + 1;
+  const baseName = `${project.name}-Batch${sequence}`;
+  const [form, setForm] = useState({
+    supplement: '',
+    locationId: '',
+    plannedDate: '',
+    owner: plan.owner || state.currentUser,
+    deviceIds: [],
+    erpReferenceKeys: [],
+    feishuName: '',
+    feishuUrl: '',
+    notes: '',
+  });
+  const [query, setQuery] = useState('');
+  const [selectedOnly, setSelectedOnly] = useState(false);
+  const [errors, setErrors] = useState({});
+  const locations = state.locations.filter((item) => item.projectId === plan.projectId && !item.disabled);
+  const existingInPlan = new Set(deliveryRelations(plan).map((item) => item.deviceId));
+  const occupiedElsewhere = new Map();
+  state.deliveryPlans.filter((item) => item.id !== plan.id && !deliveryMetrics(item).isCompleted).forEach((item) => {
+    deliveryRelations(item).forEach((relation) => occupiedElsewhere.set(relation.deviceId, item.id));
+  });
+  const projectDevices = state.devices.filter((item) => item.projectId === plan.projectId);
+  const remainingSlots = Math.max(0, Number(plan.plannedCount) - deliveryMetrics(plan).included);
+  const allRows = projectDevices.map((device) => {
+    let reason = '';
+    if (!isProductionComplete(device)) reason = '生产尚未完成';
+    else if (!device.erpInboundNo) reason = 'ERP 产品入库未关联';
+    else if (existingInPlan.has(device.id)) reason = '已加入当前交付执行其他批次';
+    else if (occupiedElsewhere.has(device.id)) reason = `已被其他未完成交付执行占用（${occupiedElsewhere.get(device.id)}）`;
+    else if (form.locationId && device.locationId && device.locationId !== form.locationId) reason = '点位冲突';
+    else if (form.deviceIds.length >= remainingSlots && !form.deviceIds.includes(device.id)) reason = '超过计划交付数量';
+    return { device, reason };
+  });
+  const rows = allRows
+    .filter(({ device }) => !query || `${device.sn} ${device.robotNo} ${device.model || ''}`.toLowerCase().includes(query.toLowerCase()))
+    .filter(({ device }) => !selectedOnly || form.deviceIds.includes(device.id));
+  const eligibleCount = allRows.filter((item) => !item.reason).length;
+  const productionCount = projectDevices.filter(isProductionComplete).length;
+  const inboundCount = projectDevices.filter((item) => item.erpInboundNo).length;
+  const references = deliveryErpReferences();
+  const update = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => ({ ...prev, [key]: '' }));
+  };
+  const toggleDevice = (id) => {
+    if (!form.deviceIds.includes(id) && form.deviceIds.length >= remainingSlots) return;
+    update('deviceIds', form.deviceIds.includes(id) ? form.deviceIds.filter((item) => item !== id) : [...form.deviceIds, id]);
+  };
+  const toggleReference = (key) => update('erpReferenceKeys', form.erpReferenceKeys.includes(key) ? form.erpReferenceKeys.filter((item) => item !== key) : [...form.erpReferenceKeys, key]);
+  const submit = () => {
+    const next = {};
+    if (form.supplement.trim().length > 30) next.supplement = '批次补充说明不能超过 30 个字符。';
+    if (!form.owner) next.owner = '请选择批次负责人。';
+    if (!form.deviceIds.length) next.deviceIds = '请至少选择一台设备。';
+    if (form.deviceIds.length > remainingSlots) next.deviceIds = `当前最多还可纳入 ${remainingSlots} 台设备。`;
+    if ((form.feishuName && !form.feishuUrl) || (!form.feishuName && form.feishuUrl)) next.feishu = '补充链接的名称和链接需同时填写。';
+    if (form.feishuUrl && !/^https?:\/\/\S+$/i.test(form.feishuUrl)) next.feishu = '请输入有效的飞书链接。';
+    const displayName = form.supplement.trim() ? `${baseName} · ${form.supplement.trim()}` : baseName;
+    if (plan.batches.some((item) => batchDisplayName(item) === displayName)) next.supplement = '当前交付执行下已存在相同批次展示名称。';
+    if (Object.keys(next).length) return setErrors(next);
+    onSave({ ...form, sequence, baseName, displayName });
+  };
+  return (
+    <div className="space-y-5">
+      <div className="rounded-md border border-gray-200 p-4 space-y-4">
+        <h3 className="text-[13px] font-semibold text-gray-800">批次信息</h3>
+        <div><label className="block text-xs text-gray-600 mb-1">系统批次基础名称</label><Input className="w-full bg-gray-50" value={baseName} disabled /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label className="block text-xs text-gray-600 mb-1">批次补充说明</label><Input className="w-full" maxLength={30} placeholder="如：A 区先行批、补发批" value={form.supplement} onChange={(event) => update('supplement', event.target.value)} />{errors.supplement && <p className="text-xs text-red-600 mt-1">{errors.supplement}</p>}</div>
+          <div><label className="block text-xs text-gray-600 mb-1">目标点位</label><Select className="w-full" value={form.locationId} onChange={(event) => update('locationId', event.target.value)}><option value="">暂未关联点位</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
+          <div><label className="block text-xs text-gray-600 mb-1">计划交付日期</label><Input className="w-full" type="date" value={form.plannedDate} onChange={(event) => update('plannedDate', event.target.value)} /></div>
+          <div><label className="block text-xs text-gray-600 mb-1">批次负责人 <span className="text-red-500">*</span></label><Select className="w-full" value={form.owner} onChange={(event) => update('owner', event.target.value)}>{state.users.filter((item) => item.status !== '停用').map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}</Select>{errors.owner && <p className="text-xs text-red-600 mt-1">{errors.owner}</p>}</div>
         </div>
-      )}
-      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>{current ? '修改交付结果' : '提交交付结果'}</Btn></div>
+      </div>
+      <div className="rounded-md border border-gray-200 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3"><h3 className="text-[13px] font-semibold text-gray-800">本批次设备 <span className="text-red-500">*</span></h3><div className="flex items-center gap-2"><label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap"><input type="checkbox" checked={selectedOnly} onChange={(event) => setSelectedOnly(event.target.checked)} />仅看已选择</label><SearchInput className="w-52" placeholder="搜索 SN / 机器人编号" value={query} onChange={(event) => setQuery(event.target.value)} /></div></div>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500"><span>当前项目生产已完成：{productionCount} 台</span><span>ERP 产品入库已关联：{inboundCount} 台</span><span>当前符合条件：{eligibleCount} 台</span></div>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs font-medium text-gray-700"><span>已选择 {form.deviceIds.length} 台</span><span>当前最多还可选择 {Math.max(0, remainingSlots - form.deviceIds.length)} 台</span></div>
+        <div className="max-h-72 overflow-auto rounded-md border border-gray-200">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-gray-50 text-gray-500"><tr><th className="p-2 text-left">选择</th><th className="p-2 text-left">设备 SN</th><th className="p-2 text-left">机器人编号</th><th className="p-2 text-left">型号</th><th className="p-2 text-left">生产进度</th><th className="p-2 text-left">ERP 入库</th><th className="p-2 text-left">当前点位</th><th className="p-2 text-left">选择条件</th></tr></thead>
+            <tbody className="divide-y divide-gray-100">{rows.map(({ device, reason }) => (
+              <tr key={device.id} className={reason ? 'text-gray-400' : ''}>
+                <td className="p-2"><input type="checkbox" disabled={!!reason} checked={form.deviceIds.includes(device.id)} onChange={() => toggleDevice(device.id)} /></td>
+                <td className="p-2 font-mono">{device.sn}</td><td className="p-2 font-mono">{device.robotNo}</td>
+                <td className="p-2">{state.deviceTypes.find((item) => item.id === device.deviceTypeId)?.name || device.model || '—'}</td>
+                <td className="p-2"><StatusBadge status={productionProgressLabel(device)} /></td><td className="p-2">{device.erpInboundNo ? '已关联' : '未关联'}</td>
+                <td className="p-2">{state.locations.find((item) => item.id === device.locationId)?.name || '—'}</td><td className="p-2">{reason || '可选择'}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {!rows.length && <EmptyState className="py-6">当前项目暂无设备</EmptyState>}
+        </div>
+        {errors.deviceIds && <p className="text-xs text-red-600">{errors.deviceIds}</p>}
+      </div>
+      <div className="rounded-md border border-gray-200 p-4 space-y-3">
+        <h3 className="text-[13px] font-semibold text-gray-800">ERP 来源单据（选填）</h3>
+        <div className="max-h-36 overflow-y-auto divide-y divide-gray-100">{references.map((item) => {
+          const key = `${item.type}::${item.no}`;
+          return <label key={key} className="flex items-center gap-3 py-2 text-xs"><input type="checkbox" checked={form.erpReferenceKeys.includes(key)} onChange={() => toggleReference(key)} /><span>{item.type}</span><span className="font-mono">{item.no}</span><span className="text-gray-400">{item.date} {item.summary}</span></label>;
+        })}</div>
+        <p className="text-xs text-gray-400">仅从当前销售发货单和调拨订单中选择，平台不修改 ERP 单据。</p>
+      </div>
+      <div className="rounded-md border border-gray-200 p-4 space-y-3">
+        <h3 className="text-[13px] font-semibold text-gray-800">批次相关飞书链接（选填）</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><Input placeholder="表格或记录名称" value={form.feishuName} onChange={(event) => update('feishuName', event.target.value)} /><Input placeholder="https://" value={form.feishuUrl} onChange={(event) => update('feishuUrl', event.target.value)} /></div>
+        {errors.feishu && <p className="text-xs text-red-600">{errors.feishu}</p>}
+        <div><label className="block text-xs text-gray-600 mb-1">备注</label><textarea className="ui-input w-full min-h-16" value={form.notes} onChange={(event) => update('notes', event.target.value)} /></div>
+      </div>
+      <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-gray-100 bg-white px-1 py-3"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>新增交付批次</Btn></div>
     </div>
   );
 }
@@ -332,303 +202,204 @@ export default function DeliveryPlanDetail() {
   const { id } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { state, dispatch } = useApp();
-  const requestedTab = searchParams.get('tab');
-  const [active, setActiveState] = useState(TAB_KEYS.has(requestedTab) ? requestedTab : 'basic');
+  const requested = searchParams.get('tab');
+  const [active, setActiveState] = useState(TAB_KEYS.has(requested) ? requested : 'overview');
   const [modal, setModal] = useState(null);
+  const [deviceFilters, setDeviceFilters] = useState({ batchId: '', result: '', locationId: '', exception: '' });
   const plan = state.deliveryPlans.find((item) => item.id === id);
   if (!plan) return <Page><PageHeader title="交付执行不存在" actions={<Btn as="link" to="/projects?tab=delivery">返回列表</Btn>} /></Page>;
-
   const project = state.projects.find((item) => item.id === plan.projectId);
-  const location = state.locations.find((item) => item.id === plan.locationId);
-  const devices = state.devices.filter((item) => (plan.boundDeviceIds || []).includes(item.id));
-  const records = plan.executionRecords || [];
-  const result = plan.deliveryResult;
+  const returnTo = searchParams.get('returnTo') || '/projects?tab=delivery';
+  const planBatchReturn = `/delivery-plans/${plan.id}?tab=batches&returnTo=${encodeURIComponent(returnTo)}`;
+  const planDeviceReturn = `/delivery-plans/${plan.id}?tab=devices&returnTo=${encodeURIComponent(returnTo)}`;
+  const metrics = deliveryMetrics(plan);
+  const relations = deliveryRelations(plan);
   const exceptions = state.deliveryExceptions.filter((item) => item.deliveryPlanId === plan.id);
-  const logs = plan.operationLogs || [];
-  const viewedRecord = modal?.type === 'record-view' ? records.find((item) => item.id === modal.id) : null;
-  const editedRecord = modal?.type === 'record-edit' ? records.find((item) => item.id === modal.id) : null;
   const setActive = (tab) => {
     setActiveState(tab);
-    setSearchParams(tab === 'basic' ? {} : { tab });
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'overview') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next);
   };
-  const appendLog = (action, notes, time = nowText()) => ({ id: `DLOG-${Date.now()}-${Math.random()}`, time, operator: state.currentUser, action, notes });
-  const updatePlan = (payload, action, notes, time = nowText()) => {
-    const projectId = payload.projectId || plan.projectId;
-    dispatch({ type: 'UPDATE_DELIVERY_PLAN', payload: { id: plan.id, ...payload, updatedAt: time, operationLogs: [...logs, appendLog(action, notes, time)] } });
-    dispatch({ type: 'ADD_OPERATION_LOG', payload: { id: `LOG-${Date.now()}-${Math.random()}`, deliveryPlanId: plan.id, projectId, operator: state.currentUser, timestamp: time, actionType: action, module: '项目中心', notes } });
+  const updatePlan = (payload, action, notes) => {
+    const time = nowText();
+    const nextLogs = [...(plan.operationLogs || []), { id: `DLOG-${Date.now()}-${Math.random()}`, time, operator: state.currentUser, action, notes }];
+    dispatch({ type: 'UPDATE_DELIVERY_PLAN', payload: { id: plan.id, ...payload, updatedAt: time, operationLogs: nextLogs } });
+    dispatch({ type: 'ADD_OPERATION_LOG', payload: { id: `LOG-${Date.now()}-${Math.random()}`, deliveryPlanId: plan.id, projectId: payload.projectId || plan.projectId, operator: state.currentUser, timestamp: time, actionType: action, module: '项目中心', notes } });
     setModal(null);
   };
-
-  const saveAssociations = (form) => {
-    const time = nowText();
-    const removed = (plan.boundDeviceIds || []).filter((deviceId) => !form.boundDeviceIds.includes(deviceId));
-    removed.forEach((deviceId) => {
-      const device = state.devices.find((item) => item.id === deviceId);
-      if (!device) return;
-      const remaining = (device.deliveryPlanIds || []).filter((item) => item !== plan.id);
-      dispatch({ type: 'UPDATE_DEVICE', payload: { id: deviceId, deliveryPlanId: remaining[0] || null, deliveryPlanIds: remaining, updatedAt: time } });
-    });
-    form.boundDeviceIds.forEach((deviceId) => {
-      const device = state.devices.find((item) => item.id === deviceId);
-      if (!device) return;
-      dispatch({ type: 'UPDATE_DEVICE', payload: {
-        id: deviceId,
-        projectId: form.projectId,
-        locationId: form.locationId,
-        deliveryPlanId: plan.id,
-        deliveryPlanIds: [...new Set([...(device.deliveryPlanIds || []), plan.id])],
-        updatedAt: time,
-      } });
-    });
-    const targetProject = state.projects.find((item) => item.id === form.projectId);
-    const targetLocation = state.locations.find((item) => item.id === form.locationId);
-    updatePlan({
-      projectId: form.projectId,
-      locationId: form.locationId,
-      boundDeviceIds: form.boundDeviceIds,
-      records: {
-        ...plan.records,
-        binding: form.boundDeviceIds.map((deviceId) => ({ id: `BIND-${plan.id}-${deviceId}`, deviceId, locationId: form.locationId, operator: state.currentUser, time })),
-      },
-    }, '调整关联关系', `调整为 ${targetProject?.name || '项目'} / ${targetLocation?.name || '点位'}，关联 ${form.boundDeviceIds.length} 台设备`, time);
+  const saveBasic = (form) => {
+    const { modificationReason, ...payload } = form;
+    updatePlan(payload, '编辑交付执行基础信息', modificationReason || '更新负责人、目标日期或需求信息');
   };
-
-  const saveExecution = (form, recordId = null) => {
+  const saveBatch = (form) => {
     const time = nowText();
-    const existing = records.find((item) => item.id === recordId);
-    const record = {
-      id: existing?.id || `EXEC-${Date.now()}`,
-      title: form.title.trim(),
-      content: form.content.trim(),
-      deviceIds: form.deviceIds,
-      hasException: form.hasException,
-      exceptionDescription: form.hasException ? form.exceptionDescription.trim() : '',
-      recorder: existing?.recorder || state.currentUser,
-      time: existing?.time || time,
-      createdAt: existing?.createdAt || existing?.time || time,
+    const batchId = `BAT-${plan.id}-${String(form.sequence).padStart(2, '0')}-${Date.now()}`;
+    const references = deliveryErpReferences();
+    const batch = {
+      id: batchId,
+      sequence: form.sequence,
+      baseName: form.baseName,
+      supplement: form.supplement.trim(),
+      locationId: form.locationId || null,
+      plannedDate: form.plannedDate,
+      owner: form.owner,
+      deviceRelations: form.deviceIds.map((deviceId) => ({
+        id: `DR-${batchId}-${deviceId}`,
+        deviceId,
+        targetLocationId: form.locationId || null,
+        actualLocationId: null,
+        result: '未确认',
+        actualDate: '',
+        resultSummary: '',
+        exceptionDescription: '',
+        documentUrl: '',
+        recorder: '',
+        recordTime: '',
+        resultHistory: [],
+      })),
+      erpReferences: form.erpReferenceKeys.map((key) => {
+        const [type, no] = key.split('::');
+        const source = references.find((item) => item.type === type && item.no === no);
+        return { type, no, date: source?.date || '', summary: source?.summary || '' };
+      }),
+      feishuLinks: form.feishuName ? [{ id: `BFS-${Date.now()}`, name: form.feishuName.trim(), url: form.feishuUrl.trim(), note: '' }] : [],
+      siteRecords: [],
+      notes: form.notes.trim(),
+      createdBy: state.currentUser,
+      createdAt: time,
       updatedAt: time,
+      operationLogs: [{ id: `BLOG-${Date.now()}`, time, operator: state.currentUser, action: '新增交付批次', notes: `纳入 ${form.deviceIds.length} 台设备` }],
     };
-    const oldException = exceptions.find((item) => item.sourceRecordId === record.id);
-    if (record.hasException) {
-      const payload = {
-        id: oldException?.id || `DEX-${record.id}`,
-        deliveryPlanId: plan.id,
-        projectId: plan.projectId,
-        locationId: plan.locationId,
-        sourceRecordId: record.id,
-        sourceTitle: record.title,
-        sourceType: '执行记录',
-        affectedDeviceIds: record.deviceIds,
-        description: record.exceptionDescription,
-        recorder: state.currentUser,
-        recordTime: time,
-      };
-      dispatch({ type: oldException ? 'UPDATE_DELIVERY_EXCEPTION' : 'ADD_DELIVERY_EXCEPTION', payload });
-    } else if (oldException) {
-      dispatch({ type: 'DELETE_DELIVERY_EXCEPTION', payload: oldException.id });
-    }
-    const nextRecords = existing
-      ? records.map((item) => item.id === existing.id ? record : item)
-      : [...records, record];
-    updatePlan({ executionRecords: nextRecords }, existing ? '编辑执行记录' : '新增执行记录', record.title, time);
+    form.deviceIds.forEach((deviceId) => {
+      const device = state.devices.find((item) => item.id === deviceId);
+      dispatch({ type: 'UPDATE_DEVICE', payload: { id: deviceId, deliveryPlanId: plan.id, deliveryPlanIds: [...new Set([...(device?.deliveryPlanIds || []), plan.id])], deliveryBatchId: batchId, updatedAt: time } });
+    });
+    updatePlan({ batches: [...plan.batches, batch], nextBatchSequence: form.sequence + 1 }, '新增交付批次', `${batchDisplayName(batch)}，纳入 ${form.deviceIds.length} 台设备`);
   };
-
-  const deleteExecution = (record) => {
-    if (!window.confirm(`确认删除执行记录“${record.title}”吗？对应异常记录也会一并移除。`)) return;
-    const oldException = exceptions.find((item) => item.sourceRecordId === record.id);
-    if (oldException) dispatch({ type: 'DELETE_DELIVERY_EXCEPTION', payload: oldException.id });
-    updatePlan({ executionRecords: records.filter((item) => item.id !== record.id) }, '删除执行记录', record.title);
-  };
-
-  const saveResult = (form) => {
-    const time = nowText();
-    const sourceRecordId = `RESULT-${plan.id}`;
-    const oldException = exceptions.find((item) => item.sourceRecordId === sourceRecordId);
-    if (form.result === '未通过') {
-      const payload = {
-        id: oldException?.id || `DEX-${sourceRecordId}`,
-        deliveryPlanId: plan.id,
-        projectId: plan.projectId,
-        locationId: plan.locationId,
-        sourceRecordId,
-        sourceTitle: '交付结果',
-        sourceType: '交付结果',
-        affectedDeviceIds: form.affectedDeviceIds,
-        description: form.exceptionDescription.trim(),
-        recorder: state.currentUser,
-        recordTime: time,
-      };
-      dispatch({ type: oldException ? 'UPDATE_DELIVERY_EXCEPTION' : 'ADD_DELIVERY_EXCEPTION', payload });
-    } else if (oldException) {
-      dispatch({ type: 'DELETE_DELIVERY_EXCEPTION', payload: oldException.id });
-    }
-    const history = result ? [...(result.history || []), { ...result, revisedAt: time, modificationReason: form.modificationReason }] : [];
-    updatePlan({
-      deliveryResult: {
-        id: sourceRecordId,
-        result: form.result,
-        summary: form.summary.trim(),
-        affectedDeviceIds: form.result === '未通过' ? form.affectedDeviceIds : [],
-        exceptionDescription: form.result === '未通过' ? form.exceptionDescription.trim() : '',
-        recorder: state.currentUser,
-        time,
-        history,
-      },
-    }, result ? '修改交付结果' : '提交交付结果', result ? form.modificationReason : `${form.result}：${form.summary}`, time);
-  };
-
-  const openExceptionSource = (item) => {
-    if (item.sourceType === '交付结果') {
-      setActive('result');
-      return;
-    }
-    setActive('execution');
-    if (records.some((record) => record.id === item.sourceRecordId)) setModal({ type: 'record-view', id: item.sourceRecordId });
-  };
+  const filteredRelations = useMemo(() => relations.filter((relation) => {
+    const exceptionCount = exceptions.filter((item) => (item.affectedDeviceIds || []).includes(relation.deviceId)).length;
+    const locationId = relation.actualLocationId || relation.targetLocationId;
+    return (!deviceFilters.batchId || relation.batch.id === deviceFilters.batchId)
+      && (!deviceFilters.result || relation.result === deviceFilters.result)
+      && (!deviceFilters.locationId || locationId === deviceFilters.locationId)
+      && (!deviceFilters.exception || (deviceFilters.exception === 'yes' ? exceptionCount > 0 : exceptionCount === 0));
+  }), [relations, exceptions, deviceFilters]);
+  const devicePaged = usePaged(filteredRelations, 10);
+  const batchPaged = usePaged(plan.batches, 10);
+  const logs = [...(plan.operationLogs || [])].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
 
   return (
     <Page>
       <PageHeader
-        title={plan.title || plan.name}
-        description={`${plan.id} · ${project?.name || '—'} / ${location?.name || '—'}`}
-        breadcrumb={<Link to="/projects?tab=delivery" className="ui-link text-[13px]">‹ 返回交付执行列表</Link>}
-        actions={<Btn onClick={() => setModal({ type: 'basic' })}>编辑基础信息</Btn>}
+        breadcrumb={<div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>{returnTo.startsWith('/projects/') ? '项目详情' : '交付执行列表'}</Link><span>/</span><span>交付执行</span></div>}
+        title={`${project?.name || '项目'} · 交付执行`}
+        description={`${plan.id} · 交付负责人 ${plan.owner || '—'} · 目标完成日期 ${plan.targetDate || '未设置'} · 当前完成 ${metrics.completed} / ${metrics.planned}`}
+        actions={<><Btn onClick={() => setModal({ type: 'edit' })}>编辑基础信息</Btn><Btn variant="primary" onClick={() => setModal({ type: 'batch' })}>新增交付批次</Btn></>}
       />
-      <p className="text-xs text-gray-400">当前暂未定义统一交付状态，页面仅展示交付执行信息、交付结果和异常记录。</p>
       <TabBar active={active} onChange={setActive} />
 
-      {active === 'basic' && (
-        <>
-          <Section title="交付基础信息">
-            <DescList cols={3} items={[
-              ['交付执行编号', <span className="font-mono">{plan.id}</span>],
-              ['交付执行名称', plan.title || plan.name],
-              ['项目', project ? <Link className="ui-link" to={`/projects/${project.id}`}>{project.name}</Link> : '—'],
-              ['点位', location?.name || '—'],
-              ['负责人', plan.owner || '—'],
-              ['创建人', plan.createdBy || '—'],
-              ['创建时间', plan.createdAt || '—'],
-              ['最近更新时间', plan.updatedAt || '—'],
-              ['交付需求说明', plan.demandDescription || '—'],
-              ['备注', plan.notes || '—'],
-            ]} />
-          </Section>
-          <Section title="可选来源引用">
-            <DescList cols={2} items={[
-              ['相关飞书需求链接', plan.feishuDemandUrl ? <a className="ui-link" href={plan.feishuDemandUrl} target="_blank" rel="noreferrer">打开飞书需求链接</a> : '—'],
-              ['ERP 来源', plan.erpReferenceNo ? `${plan.erpReferenceType} · ${plan.erpReferenceNo}` : '暂未关联 ERP 来源单据'],
-            ]} />
-          </Section>
-        </>
-      )}
-
-      {active === 'devices' && (
-        <Section title="关联设备" right={<Btn size="sm" onClick={() => setModal({ type: 'association' })}>调整关联关系</Btn>} bodyClassName="p-0">
-          <Table head={['设备 SN', '机器人编号', '设备型号', '所属点位', '操作']} empty="暂无交付设备">
-            {devices.map((device) => (
-              <tr key={device.id} className="hover:bg-[#fafafa]">
-                <td className="px-3 py-2 font-mono text-xs">{device.sn}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-600">{device.robotNo}</td>
-                <td className="px-3 py-2 text-gray-600">{state.deviceTypes.find((item) => item.id === device.deviceTypeId)?.name || '—'}</td>
-                <td className="px-3 py-2 text-gray-600">{location?.name || '—'}</td>
-                <td className="px-3 py-2"><Link className="ui-link text-[13px]" to={`/devices/${device.id}`}>查看设备详情</Link></td>
-              </tr>
-            ))}
-          </Table>
+      {active === 'overview' && <>
+        <StatGrid cols={4}>
+          <StatCard label="计划交付数量" value={metrics.planned} hint="台" />
+          <StatCard label="已纳入批次数量" value={metrics.included} hint="设备去重" />
+          <StatCard label="已完成交付数量" value={metrics.completed} hint="当前结果为通过" tone="success" />
+          <StatCard label="剩余未完成数量" value={metrics.remaining} hint="台" />
+        </StatGrid>
+        <Section title={`交付完成进度：${metrics.completed} / ${metrics.planned}`}>
+          <CompactProgress value={metrics.completed} total={metrics.planned} className="h-2" />
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-xs text-gray-500">
+            <span>共 {metrics.batchCount} 个批次</span>
+            {metrics.unconfirmed > 0 && <span>· {metrics.unconfirmed} 台待确认</span>}
+            {metrics.failed > 0 && <span className="text-red-600">· {metrics.failed} 台未通过</span>}
+            {metrics.unarranged > 0 && <span>· {metrics.unarranged} 台尚未安排</span>}
+            {metrics.isCompleted && <StatusBadge status="已完成" />}
+          </div>
         </Section>
-      )}
-
-      {active === 'execution' && (
-        <Section title="执行记录" right={<Btn size="sm" variant="primary" onClick={() => setModal({ type: 'record-create' })}>新增执行记录</Btn>} bodyClassName="p-0">
-          <Table head={['记录标题', '关联范围', '关联设备', '异常信息', '记录人', '记录时间', '操作']} empty="暂无执行记录">
-            {records.map((record) => {
-              const related = devices.filter((device) => (record.deviceIds || []).includes(device.id));
-              return (
-                <tr key={record.id} className="hover:bg-[#fafafa]">
-                  <td className="px-3 py-2 font-medium text-gray-800">{record.title}</td>
-                  <td className="px-3 py-2 text-gray-600">{related.length ? '具体设备' : '当前点位'}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-gray-500">{related.map((item) => item.sn).join('、') || '当前点位'}</td>
-                  <td className={`px-3 py-2 text-[13px] ${record.hasException ? 'text-red-600' : 'text-gray-400'}`}>{record.hasException ? '含异常信息' : '暂无'}</td>
-                  <td className="px-3 py-2 text-gray-600">{record.recorder || '—'}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{record.time || '—'}</td>
-                  <td className="px-3 py-2"><button className="ui-link text-[13px]" onClick={() => setModal({ type: 'record-view', id: record.id })}>查看详情</button></td>
-                </tr>
-              );
-            })}
-          </Table>
+        <Section title="执行信息">
+          <DescList cols={3} items={[
+            ['所属项目', project ? <Link className="ui-link" to={`/projects/${project.id}?tab=delivery`}>{project.name}</Link> : '—'],
+            ['交付负责人', plan.owner || '—'],
+            ['目标完成日期', plan.targetDate || '—'],
+            ['交付需求说明', plan.demandDescription || '—'],
+            ['相关飞书需求链接', plan.feishuDemandUrl ? <a className="ui-link" href={plan.feishuDemandUrl} target="_blank" rel="noreferrer">打开需求链接</a> : '—'],
+            ['备注', plan.notes || '—'],
+            ['创建人', plan.createdBy || '—'],
+            ['创建时间', plan.createdAt || '—'],
+            ['最近更新时间', plan.updatedAt || '—'],
+          ]} />
         </Section>
-      )}
+        {!metrics.isCompleted && <Section title="当前未完成原因"><ul className="space-y-1 text-[13px] text-gray-600">{metrics.reasons.map((item) => <li key={item}>• {item}</li>)}</ul></Section>}
+      </>}
 
-      {active === 'result' && (
-        <Section title="交付结果" right={<Btn size="sm" variant="primary" onClick={() => setModal({ type: 'result' })}>{result ? '修改交付结果' : '提交交付结果'}</Btn>}>
-          {result ? <DescList cols={3} items={[
-            ['交付结果', <StatusBadge status={result.result} />],
-            ['结果说明', result.summary],
-            ['记录人', result.recorder],
-            ['记录时间', result.time],
-            result.result === '未通过' && ['异常说明', result.exceptionDescription],
-            result.result === '未通过' && ['关联设备', (result.affectedDeviceIds || []).map((deviceId) => state.devices.find((item) => item.id === deviceId)?.sn).filter(Boolean).join('、') || '当前点位'],
-          ]} /> : <EmptyState className="py-8">暂无交付结果</EmptyState>}
-        </Section>
-      )}
+      {active === 'batches' && <Section title={`交付批次（${plan.batches.length}）`} right={<Btn size="sm" variant="primary" onClick={() => setModal({ type: 'batch' })}>新增交付批次</Btn>} bodyClassName="p-0">
+        <Table head={['批次展示名称', '目标点位', '设备数量', '设备结果汇总', '计划交付日期', '批次负责人', '最近更新时间', '操作']} empty="暂无交付批次" footer={<Pagination {...batchPaged} onChange={batchPaged.setPage} onPageSizeChange={batchPaged.setPageSize} />}>
+          {batchPaged.pageItems.map((batch) => {
+            const summary = batchMetrics(batch);
+            return <tr key={batch.id} className="hover:bg-[#fafafa]">
+              <td className="px-3 py-2"><Link className="ui-link font-medium" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(planBatchReturn)}`}>{batchDisplayName(batch)}</Link><div className="font-mono text-[11px] text-gray-400">{batch.id}</div></td>
+              <td className="px-3 py-2 text-gray-600">{state.locations.find((item) => item.id === batch.locationId)?.name || '暂未关联点位'}</td>
+              <td className="px-3 py-2">{summary.total} 台</td><td className="px-3 py-2 text-gray-600">{summary.summary}</td>
+              <td className="px-3 py-2 text-gray-600">{batch.plannedDate || '—'}</td><td className="px-3 py-2 text-gray-600">{batch.owner || '—'}</td>
+              <td className="px-3 py-2 text-xs text-gray-500">{batch.updatedAt || '—'}</td><td className="px-3 py-2"><LinkAction to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(planBatchReturn)}`}>查看详情</LinkAction></td>
+            </tr>;
+          })}
+        </Table>
+      </Section>}
 
-      {active === 'exceptions' && (
-        <Section title="交付异常" bodyClassName="p-0">
-          <Table head={['来源记录标题', '来源类型', '关联设备', '异常说明', '记录人', '记录时间', '操作']} empty="暂无交付异常">
-            {exceptions.map((item) => (
-              <tr key={item.id} className="hover:bg-[#fafafa]">
-                <td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle || '交付记录'}</td>
-                <td className="px-3 py-2 text-gray-600">{item.sourceType || '—'}</td>
-                <td className="px-3 py-2 font-mono text-xs text-gray-500">{(item.affectedDeviceIds || []).map((deviceId) => state.devices.find((device) => device.id === deviceId)?.sn).filter(Boolean).join('、') || '当前点位'}</td>
-                <td className="px-3 py-2 text-xs text-gray-600 max-w-sm">{item.description}</td>
-                <td className="px-3 py-2 text-gray-600">{item.recorder || '—'}</td>
-                <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{item.recordTime || '—'}</td>
-                <td className="px-3 py-2"><button className="ui-link text-[13px]" onClick={() => openExceptionSource(item)}>查看来源记录</button></td>
-              </tr>
-            ))}
-          </Table>
-        </Section>
-      )}
+      {active === 'devices' && <>
+        <Toolbar right={<span className="text-xs text-gray-400">共 {filteredRelations.length} 台设备</span>}>
+          <Select value={deviceFilters.batchId} onChange={(event) => setDeviceFilters((prev) => ({ ...prev, batchId: event.target.value }))}><option value="">全部批次</option>{plan.batches.map((item) => <option key={item.id} value={item.id}>{batchDisplayName(item)}</option>)}</Select>
+          <Select value={deviceFilters.result} onChange={(event) => setDeviceFilters((prev) => ({ ...prev, result: event.target.value }))}><option value="">全部交付结果</option><option>未确认</option><option>通过</option><option>未通过</option></Select>
+          <Select value={deviceFilters.locationId} onChange={(event) => setDeviceFilters((prev) => ({ ...prev, locationId: event.target.value }))}><option value="">全部目标点位</option>{state.locations.filter((item) => item.projectId === plan.projectId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
+          <Select value={deviceFilters.exception} onChange={(event) => setDeviceFilters((prev) => ({ ...prev, exception: event.target.value }))}><option value="">异常记录不限</option><option value="yes">存在异常</option><option value="no">暂无异常</option></Select>
+        </Toolbar>
+        <Table head={['设备 SN', '机器人编号', '型号', '所属批次', '目标点位', '实际点位', 'ERP 来源', '当前交付结果', '异常记录', '操作']} empty="暂无关联设备" footer={<Pagination {...devicePaged} onChange={devicePaged.setPage} onPageSizeChange={devicePaged.setPageSize} />}>
+          {devicePaged.pageItems.map((relation) => {
+            const device = state.devices.find((item) => item.id === relation.deviceId);
+            const batchExceptions = exceptions.filter((item) => (item.affectedDeviceIds || []).includes(relation.deviceId));
+            return <tr key={relation.id} className="hover:bg-[#fafafa]">
+              <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/devices/${device?.id}?tab=project&returnTo=${encodeURIComponent(planDeviceReturn)}`}>{device?.sn || '—'}</Link></td><td className="px-3 py-2 font-mono text-xs">{device?.robotNo || '—'}</td>
+              <td className="px-3 py-2 text-gray-600">{state.deviceTypes.find((item) => item.id === device?.deviceTypeId)?.name || '—'}</td>
+              <td className="px-3 py-2"><Link className="ui-link" to={`/delivery-plans/${plan.id}/batches/${relation.batch.id}?returnTo=${encodeURIComponent(planDeviceReturn)}`}>{batchDisplayName(relation.batch)}</Link></td>
+              <td className="px-3 py-2 text-gray-600">{state.locations.find((item) => item.id === relation.targetLocationId)?.name || '—'}</td>
+              <td className="px-3 py-2 text-gray-600">{state.locations.find((item) => item.id === relation.actualLocationId)?.name || '—'}</td>
+              <td className="px-3 py-2 text-xs text-gray-500">{relation.batch.erpReferences?.length ? relation.batch.erpReferences.map((item) => item.no).join('、') : '—'}</td>
+              <td className="px-3 py-2"><StatusBadge status={relation.result} /></td>
+              <td className="px-3 py-2">{batchExceptions.length ? `${batchExceptions.length} 条` : <span className="text-gray-400">暂无</span>}</td>
+              <td className="px-3 py-2"><LinkAction to={`/delivery-plans/${plan.id}/batches/${relation.batch.id}?returnTo=${encodeURIComponent(planDeviceReturn)}`}>查看详情</LinkAction></td>
+            </tr>;
+          })}
+        </Table>
+      </>}
 
-      {active === 'logs' && (
-        <Section title="操作日志" bodyClassName="p-0">
-          <Table head={['操作时间', '操作人', '操作动作', '操作摘要']} empty="暂无操作日志">
-            {logs.map((log) => (
-              <tr key={log.id} className="hover:bg-[#fafafa]">
-                <td className="px-3 py-2 text-xs text-gray-500">{log.time}</td>
-                <td className="px-3 py-2 text-gray-600">{log.operator}</td>
-                <td className="px-3 py-2 text-gray-700">{log.action}</td>
-                <td className="px-3 py-2 text-xs text-gray-500">{log.notes || '—'}</td>
-              </tr>
-            ))}
-          </Table>
-        </Section>
-      )}
+      {active === 'exceptions' && <Section title={`交付异常（${exceptions.length}）`} bodyClassName="p-0">
+        <Table head={['来源批次', '来源类型', '关联设备', '异常说明', '记录人', '记录时间', '操作']} empty="暂无交付异常">
+          {exceptions.map((item) => {
+            const batch = plan.batches.find((candidate) => candidate.id === item.batchId);
+            const sns = (item.affectedDeviceIds || []).map((deviceId) => state.devices.find((device) => device.id === deviceId)?.sn).filter(Boolean);
+            return <tr key={item.id} className="hover:bg-[#fafafa]">
+              <td className="px-3 py-2">{batch ? <Link className="ui-link" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions&returnTo=${encodeURIComponent(returnTo)}`)}#exceptions`}>{batchDisplayName(batch)}</Link> : '—'}</td><td className="px-3 py-2 text-gray-600">{item.sourceType}</td>
+              <td className="px-3 py-2 font-mono text-xs">{sns.length ? (item.affectedDeviceIds || []).map((deviceId) => {
+                const device = state.devices.find((candidate) => candidate.id === deviceId);
+                return device ? <Link key={device.id} className="ui-link mr-2" to={`/devices/${device.id}?tab=project&returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions&returnTo=${encodeURIComponent(returnTo)}`)}`}>{device.sn}</Link> : null;
+              }) : '批次级'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.description}</td>
+              <td className="px-3 py-2 text-gray-600">{item.recorder || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime || '—'}</td>
+              <td className="px-3 py-2">{batch && <LinkAction to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions&returnTo=${encodeURIComponent(returnTo)}`)}#exceptions`}>查看详情</LinkAction>}</td>
+            </tr>;
+          })}
+        </Table>
+      </Section>}
 
-      <Modal size="lg" isOpen={modal?.type === 'basic'} onClose={() => setModal(null)} title="编辑交付基础信息">
-        <BasicForm plan={plan} state={state} onClose={() => setModal(null)} onSave={(form) => updatePlan({ ...form, name: form.title }, '编辑基础信息', '更新交付执行基础信息')} />
-      </Modal>
-      <Modal size="xl" isOpen={modal?.type === 'association'} onClose={() => setModal(null)} title="调整关联关系">
-        <AssociationForm plan={plan} state={state} onClose={() => setModal(null)} onSave={saveAssociations} />
-      </Modal>
-      <Modal size="lg" isOpen={modal?.type === 'record-create'} onClose={() => setModal(null)} title="新增执行记录">
-        <ExecutionForm devices={devices} onClose={() => setModal(null)} onSave={saveExecution} />
-      </Modal>
-      <Modal size="lg" isOpen={modal?.type === 'record-edit'} onClose={() => setModal(null)} title="编辑执行记录">
-        {editedRecord && <ExecutionForm record={editedRecord} devices={devices} onClose={() => setModal(null)} onSave={(form) => saveExecution(form, editedRecord.id)} />}
-      </Modal>
-      <Modal size="lg" isOpen={modal?.type === 'record-view'} onClose={() => setModal(null)} title="执行记录详情">
-        {viewedRecord && <ExecutionRecordDetail
-          record={viewedRecord}
-          devices={devices}
-          onClose={() => setModal(null)}
-          onEdit={() => setModal({ type: 'record-edit', id: viewedRecord.id })}
-          onDelete={() => deleteExecution(viewedRecord)}
-        />}
-      </Modal>
-      <Modal size="lg" isOpen={modal?.type === 'result'} onClose={() => setModal(null)} title={result ? '修改交付结果' : '提交交付结果'}>
-        <DeliveryResultForm current={result} devices={devices} onClose={() => setModal(null)} onSave={saveResult} />
-      </Modal>
+      {active === 'logs' && <Section title="操作日志" bodyClassName="p-0">
+        <Table head={['操作时间', '操作人', '操作动作', '操作摘要']} empty="暂无操作日志">
+          {logs.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]"><td className="px-3 py-2 text-xs text-gray-500">{item.time || '—'}</td><td className="px-3 py-2 text-gray-600">{item.operator || '—'}</td><td className="px-3 py-2 text-gray-700">{item.action}</td><td className="px-3 py-2 text-xs text-gray-500">{item.notes || '—'}</td></tr>)}
+        </Table>
+      </Section>}
+
+      <Modal size="xl" isOpen={modal?.type === 'edit'} onClose={() => setModal(null)} title="编辑交付执行基础信息"><EditPlanForm plan={plan} state={state} included={metrics.included} onClose={() => setModal(null)} onSave={saveBasic} /></Modal>
+      <Modal size="2xl" isOpen={modal?.type === 'batch'} onClose={() => setModal(null)} title="新增交付批次"><NewBatchForm plan={plan} project={project} state={state} onClose={() => setModal(null)} onSave={saveBatch} /></Modal>
     </Page>
   );
 }

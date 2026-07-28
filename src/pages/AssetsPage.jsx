@@ -4,12 +4,20 @@ import { useApp } from '../context/AppContext';
 import StatusBadge from '../components/StatusBadge';
 import { Pagination, usePaged } from '../components/Pagination';
 import { PRODUCTION_STEPS, getProductionKey, isProductionComplete, productionProgressLabel } from '../data/prdV12';
-import { Page, PageHeader, Toolbar, SearchInput, Select, Table, Chip, LinkAction } from '../components/ui';
+import { Page, PageHeader, Toolbar, SearchInput, Select, Table, Chip, LinkAction, StatGrid, StatCard } from '../components/ui';
 
 export default function AssetsPage() {
   const { state } = useApp();
   const [filters, setFilters] = useState({ query: '', status: '', projectId: '', inbound: '' });
   const update = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+  const activeDevices = state.devices.filter((device) => device.archiveStatus !== '已作废');
+  const stats = {
+    total: activeDevices.length,
+    inProcess: activeDevices.filter((device) => !isProductionComplete(device)).length,
+    completed: activeDevices.filter(isProductionComplete).length,
+    inbound: activeDevices.filter((device) => !!device.erpInboundNo).length,
+    pendingInbound: activeDevices.filter((device) => isProductionComplete(device) && !device.erpInboundNo).length,
+  };
 
   const rows = useMemo(() => state.devices
     .filter((device) => device.archiveStatus !== '已作废')
@@ -36,6 +44,13 @@ export default function AssetsPage() {
         description="查询平台中所有有效设备档案，并从设备 SN 下钻查看聚合履历。"
         breadcrumb={<div className="text-xs text-gray-400 mb-1">设备管理 / 设备台账</div>}
       />
+      <StatGrid cols={5}>
+        <StatCard label="设备总数" value={stats.total} hint="有效设备档案" />
+        <StatCard label="在制设备" value={stats.inProcess} hint="五个生产节点内" />
+        <StatCard label="生产已完成" value={stats.completed} hint="终测完成" tone="success" />
+        <StatCard label="ERP 产品入库已关联" value={stats.inbound} hint="已匹配产品入库单" tone="success" />
+        <StatCard label="待产品入库" value={stats.pendingInbound} hint="等待 ERP 产品入库关联" />
+      </StatGrid>
       <Toolbar right={<span className="text-xs text-gray-400">共 {rows.length} 台设备</span>}>
         <SearchInput className="w-72" placeholder="搜索设备 SN / 机器人编号" value={filters.query} onChange={(event) => update('query', event.target.value)} />
         <Select value={filters.status} onChange={(event) => update('status', event.target.value)}>

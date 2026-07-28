@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import StatusBadge from '../components/StatusBadge';
 import {
   SHARED_FEISHU_TABLES, productionLabel, productionProgressLabel, productionTimeline,
 } from '../data/prdV12';
+import { batchDisplayName, relationForDevice } from '../data/deliveryV2';
+import { erpReferenceUrl } from '../data/erpPrototype';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, LinkAction, EmptyState,
 } from '../components/ui';
@@ -24,7 +25,7 @@ function FeishuTables({ device }) {
           <h3 className="text-xs font-medium text-gray-500 mb-2">常用飞书表格</h3>
           <div className="divide-y divide-gray-100">
             {SHARED_FEISHU_TABLES.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-2"><span className="text-[13px] text-gray-700">{item.name}</span><a className="ui-link text-[13px]" href={item.url} target="_blank" rel="noreferrer">打开表格</a></div>)}
-            <div className="flex items-center justify-between gap-3 py-2"><span className="text-[13px] text-gray-700">电子验收单</span>{device.electronicAcceptanceUrl ? <a className="ui-link text-[13px]" href={device.electronicAcceptanceUrl} target="_blank" rel="noreferrer">打开记录</a> : <span className="text-xs text-gray-400">暂无设备专属记录。</span>}</div>
+            <div className="flex items-center justify-between gap-3 py-2"><span className="text-[13px] text-gray-700">电子验收单</span>{device.electronicAcceptanceUrl ? <a className="ui-link text-[13px]" href={device.electronicAcceptanceUrl} target="_blank" rel="noreferrer">打开表格</a> : <span className="text-xs text-gray-400">暂无设备专属记录。</span>}</div>
           </div>
         </div>
         <div>
@@ -41,34 +42,48 @@ function FeishuTables({ device }) {
 export default function DeviceDetail() {
   const { id } = useParams();
   const { state } = useApp();
-  const [active, setActive] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const active = TABS.some(([key]) => key === requestedTab) ? requestedTab : 'overview';
+  const returnTo = searchParams.get('returnTo');
+  const setActive = (tab) => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'overview') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next);
+  };
   const device = state.devices.find((item) => item.id === id || item.sn === id);
   if (!device) return <Page><PageHeader title="设备不存在" actions={<Btn as="link" to="/assets">返回设备台账</Btn>} /></Page>;
 
   const type = state.deviceTypes.find((item) => item.id === device.deviceTypeId);
   const project = state.projects.find((item) => item.id === device.projectId);
   const location = state.locations.find((item) => item.id === device.locationId);
-  const deliveries = state.deliveryPlans.filter((item) => (item.boundDeviceIds || []).includes(device.id));
+  const deliveryEntries = state.deliveryPlans
+    .map((plan) => ({ plan, relation: relationForDevice(plan, device.id) }))
+    .filter((item) => item.relation);
+  const deliveries = deliveryEntries.map((item) => item.plan);
   const deliveryIds = new Set(deliveries.map((item) => item.id));
   const exceptions = state.deliveryExceptions.filter((item) => deliveryIds.has(item.deliveryPlanId) && (item.affectedDeviceIds || []).includes(device.id));
   const logs = [
     ...state.operationLogs.filter((item) => item.deviceId === device.id),
     ...deliveries.flatMap((plan) => (plan.operationLogs || []).map((item) => ({
       ...item, id: `${plan.id}-${item.id}-${device.id}`, timestamp: item.time, actionType: item.action,
-      notes: `${plan.title || plan.name}：${item.notes || ''}`, module: '项目中心',
+      notes: `${plan.id}：${item.notes || ''}`, module: '项目中心',
     }))),
   ].sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
   const actions = <>
     <Btn as="link" to={`/production?tab=flow&device=${device.id}`}>进入生产流转</Btn>
     {project && <Btn as="link" to={`/projects/${project.id}`}>查看项目详情</Btn>}
-    {deliveries.length === 1 && <Btn as="link" to={`/delivery-plans/${deliveries[0].id}`}>查看交付执行</Btn>}
+    {deliveries.length === 1 && <Btn as="link" to={`/delivery-plans/${deliveries[0].id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看交付执行</Btn>}
     {deliveries.length > 1 && <Btn onClick={() => setActive('project')}>查看交付执行</Btn>}
   </>;
 
   return (
     <Page>
       <PageHeader
-        breadcrumb={<Link to="/assets" className="ui-link text-[13px]">‹ 返回设备台账</Link>}
+        breadcrumb={returnTo
+          ? <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>返回来源页面</Link><span>/</span><span>设备详情</span></div>
+          : <Link to="/assets" className="ui-link text-[13px]">‹ 返回设备台账</Link>}
         title={device.sn}
         description={`${device.robotNo} · ${type?.name || '—'}`}
         actions={actions}
@@ -112,21 +127,41 @@ export default function DeviceDetail() {
           ]} /> : <p className="text-[13px] text-gray-500">当前设备尚未绑定项目和点位。</p>}
         </Section>
         <Section title="交付执行" bodyClassName="p-0">
-          {deliveries.length ? <Table head={['交付执行名称 / 编号', '项目', '点位', '交付结果', '异常记录', '最近更新时间', '操作']}>
-            {deliveries.map((plan) => {
-              const result = plan.deliveryResult?.result;
+          {deliveryEntries.length ? <Table head={['交付执行编号', '所属批次', '项目', '目标 / 实际点位', 'ERP 发货 / 调拨来源', '当前交付结果', '结果时间', '异常记录', '操作']}>
+            {deliveryEntries.map(({ plan, relation }) => {
+              const batch = relation.batch;
               const exceptionCount = exceptions.filter((item) => item.deliveryPlanId === plan.id).length;
               return <tr key={plan.id} className="hover:bg-[#fafafa]">
-                <td className="px-3 py-2"><span className="text-gray-700">{plan.title || plan.name}</span><div className="font-mono text-[11px] text-gray-400">{plan.id}</div></td>
-                <td className="px-3 py-2 text-gray-600">{project?.name || '—'}</td><td className="px-3 py-2 text-gray-600">{location?.name || '—'}</td>
-                <td className="px-3 py-2">{result ? <StatusBadge status={result} /> : <span className="text-gray-400">暂无结果</span>}</td>
-                <td className="px-3 py-2">{exceptionCount ? <LinkAction to={`/delivery-plans/${plan.id}?tab=exceptions`}>{exceptionCount} 条</LinkAction> : <span className="text-gray-400">暂无</span>}</td><td className="px-3 py-2 text-xs text-gray-500">{plan.updatedAt || '—'}</td>
-                <td className="px-3 py-2"><LinkAction to={`/delivery-plans/${plan.id}`}>查看交付执行详情</LinkAction></td>
+                <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{plan.id}</Link></td>
+                <td className="px-3 py-2"><Link className="ui-link" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{batchDisplayName(batch)}</Link></td>
+                <td className="px-3 py-2 text-gray-600">{state.projects.find((item) => item.id === plan.projectId) ? <Link className="ui-link" to={`/projects/${plan.projectId}?tab=delivery`}>{state.projects.find((item) => item.id === plan.projectId)?.name}</Link> : '—'}</td>
+                <td className="px-3 py-2 text-gray-600">{state.locations.find((item) => item.id === relation.targetLocationId)?.name || '—'} / {state.locations.find((item) => item.id === relation.actualLocationId)?.name || '—'}</td>
+                <td className="px-3 py-2 text-xs text-gray-500">{batch.erpReferences?.length ? batch.erpReferences.map((item) => <Link key={`${item.type}-${item.no}`} className="ui-link mr-2" to={erpReferenceUrl(item, `/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}>{item.no}</Link>) : '—'}</td>
+                <td className="px-3 py-2"><StatusBadge status={relation.result} /></td>
+                <td className="px-3 py-2 text-xs text-gray-500">{relation.recordTime || '—'}</td>
+                <td className="px-3 py-2">{exceptionCount ? <a className="ui-link" href="#device-delivery-exceptions">{exceptionCount} 条</a> : <span className="text-gray-400">暂无</span>}</td>
+                <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-3"><LinkAction to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看执行详情</LinkAction><LinkAction to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看批次详情</LinkAction></div></td>
               </tr>;
             })}
           </Table> : <EmptyState className="py-8">当前设备暂无交付执行。</EmptyState>}
         </Section>
-        <Section title="交付异常" bodyClassName="p-0">
+        {deliveryEntries.length > 0 && <Section title="交付现场记录与批次资料">
+          <div className="space-y-5">
+            {deliveryEntries.map(({ plan, relation }) => {
+              const batch = relation.batch;
+              const records = (batch.siteRecords || []).filter((item) => (item.deviceIds || []).includes(device.id));
+              return <div key={`${plan.id}-${batch.id}`} className="border-b border-gray-100 last:border-b-0 pb-4 last:pb-0">
+                <div className="flex items-center justify-between gap-3"><Link className="ui-link text-[13px] font-medium" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{batchDisplayName(batch)}</Link><Link className="ui-link text-[13px]" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看详情</Link></div>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500">
+                  {(batch.feishuLinks || []).map((item) => <a key={item.id} className="ui-link" href={item.url} target="_blank" rel="noreferrer">打开表格</a>)}
+                  {!batch.feishuLinks?.length && <span>暂无批次飞书链接</span>}
+                </div>
+                {records.length ? <div className="mt-2 space-y-1">{[...records].sort((a, b) => (b.time || '').localeCompare(a.time || '')).map((record) => <p key={record.id} className="text-xs text-gray-600">{record.time} · {record.content}{record.hasException ? ` · 异常：${record.exceptionDescription}` : ''}</p>)}</div> : <p className="text-xs text-gray-400 mt-2">暂无与当前设备明确关联的现场记录。</p>}
+              </div>;
+            })}
+          </div>
+        </Section>}
+        <Section id="device-delivery-exceptions" title="交付异常" bodyClassName="p-0">
           {exceptions.length ? <Table head={['关联交付执行', '来源记录标题', '异常来源类型', '异常说明', '记录人', '记录时间', '操作']}>
             {exceptions.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]">
               <td className="px-3 py-2 font-mono text-xs">{item.deliveryPlanId}</td><td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle || '交付记录'}</td><td className="px-3 py-2 text-gray-600">{item.sourceType || '—'}</td>

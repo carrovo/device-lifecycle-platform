@@ -28,9 +28,11 @@ import {
   FEISHU_USERS,
 } from '../data/mockData';
 import { normalizePrdState } from '../data/prdV12';
+import { normalizeDeliveryV2 } from '../data/deliveryV2';
 
 const AppContext = createContext(null);
 const FEISHU_STORAGE_KEY = 'device-lifecycle-feishu-records-v1';
+const DELIVERY_STORAGE_KEY = 'device-lifecycle-delivery-v5';
 
 function readFeishuRecords() {
   if (typeof window === 'undefined') return {};
@@ -41,6 +43,37 @@ function readFeishuRecords() {
   }
 }
 
+function readStoredDelivery() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(DELIVERY_STORAGE_KEY) || 'null');
+    return Array.isArray(stored?.plans) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyDeliveryMemberships(devices, plans) {
+  const memberships = new Map();
+  plans.forEach((plan) => {
+    (plan.batches || []).forEach((batch) => {
+      (batch.deviceRelations || []).forEach((relation) => {
+        const current = memberships.get(relation.deviceId) || [];
+        memberships.set(relation.deviceId, [...current, { planId: plan.id, batchId: batch.id }]);
+      });
+    });
+  });
+  return devices.map((device) => {
+    const linked = memberships.get(device.id) || [];
+    return {
+      ...device,
+      deliveryPlanId: linked[0]?.planId || null,
+      deliveryPlanIds: [...new Set(linked.map((item) => item.planId))],
+      deliveryBatchId: linked[0]?.batchId || null,
+    };
+  });
+}
+
 const normalizedPrd = normalizePrdState({
   devices: initDevices,
   testRecords: initTestRecords,
@@ -48,8 +81,19 @@ const normalizedPrd = normalizePrdState({
   locations: initLocations,
   deliveryExceptions: initDeliveryExceptions,
 });
+const normalizedDelivery = normalizeDeliveryV2({
+  plans: initDeliveryPlans,
+  projects: initProjects,
+  locations: initLocations,
+  devices: normalizedPrd.devices,
+  exceptions: initDeliveryExceptions,
+});
+const storedDelivery = readStoredDelivery();
+const initialDeliveryPlans = storedDelivery?.plans || normalizedDelivery.deliveryPlans;
+const initialDeliveryExceptions = storedDelivery?.exceptions || normalizedDelivery.deliveryExceptions;
+const devicesWithDelivery = applyDeliveryMemberships(normalizedDelivery.devices, initialDeliveryPlans);
 const storedFeishuRecords = readFeishuRecords();
-const devicesWithStoredFeishu = normalizedPrd.devices.map((device) => {
+const devicesWithStoredFeishu = devicesWithDelivery.map((device) => {
   const stored = storedFeishuRecords[device.id];
   if (!stored) return device;
   return {
@@ -82,12 +126,12 @@ const initialState = {
   labelCategories: initLabelCategories,
   productionWorkOrders: initProductionWorkOrders,
   deliveryWorkOrders: initDeliveryWorkOrders,
-  deliveryPlans: normalizedPrd.deliveryPlans,
+  deliveryPlans: initialDeliveryPlans,
   workflowProductionPlans: initWorkflowProductionPlans,
   locations: initLocations,
   qualityIssues: initQualityIssues,
   moduleInstances: initModuleInstances,
-  deliveryExceptions: normalizedPrd.deliveryExceptions,
+  deliveryExceptions: initialDeliveryExceptions,
   users: FEISHU_USERS.map((user) => ({ status: '启用', ...user, role: user.id === 'u1' ? '管理员' : user.role })),
   currentUser: '张三',
   currentUserId: 'u1',
@@ -283,10 +327,8 @@ function appReducer(state, action) {
         deliveryPlans: [
           ...state.deliveryPlans,
           {
-            records: { binding: [], factoryInspection: [], siteInstall: [], customerAccept: [] },
-            executionRecords: [],
-            deliveryResult: null,
-            boundDeviceIds: [],
+            batches: [],
+            operationLogs: [],
             ...action.payload,
           },
         ],
@@ -377,6 +419,17 @@ export function AppProvider({ children }) {
       // Local persistence is best effort in the frontend prototype.
     }
   }, [state.devices]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DELIVERY_STORAGE_KEY, JSON.stringify({
+        plans: state.deliveryPlans,
+        exceptions: state.deliveryExceptions,
+      }));
+    } catch {
+      // Local persistence is best effort in the frontend prototype.
+    }
+  }, [state.deliveryPlans, state.deliveryExceptions]);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

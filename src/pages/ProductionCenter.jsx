@@ -579,7 +579,7 @@ function FeishuRelations({ device, setModal }) {
               <span className="text-[13px] text-gray-700">电子验收单</span>
               <div className="flex items-center gap-3">
                 {device.electronicAcceptanceUrl
-                  ? <a className="ui-link text-[13px]" href={device.electronicAcceptanceUrl} target="_blank" rel="noreferrer">打开记录</a>
+                  ? <a className="ui-link text-[13px]" href={device.electronicAcceptanceUrl} target="_blank" rel="noreferrer">打开表格</a>
                   : <span className="text-xs text-gray-400">暂无设备专属记录。</span>}
                 <LinkAction onClick={() => setModal({ type: 'acceptance' })}>{device.electronicAcceptanceUrl ? '编辑' : '新增'}</LinkAction>
               </div>
@@ -800,9 +800,9 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
           ['设备 SN', device.sn],
           ['机器人编号', device.robotNo],
           ['设备型号', modelName(device, state.deviceTypes)],
-          ['当前生产节点', completed ? '生产已完成' : productionLabel(currentKey)],
-          ['当前节点结果', completed ? 'Pass' : currentNodeResult(device)],
-          ['返修情况', repairStatusLabel(device)],
+          ['当前生产节点', <StatusBadge status={completed ? '生产已完成' : productionLabel(currentKey)} />],
+          ['当前节点结果', <StatusBadge status={completed ? 'Pass' : currentNodeResult(device)} />],
+          ['返修情况', repairStatusLabel(device) === '—' ? '—' : <StatusBadge status={repairStatusLabel(device)} />],
         ]} />
       </Section>
       <Section title="标准生产节点">
@@ -938,7 +938,7 @@ function FlowList({ state, setSearchParams }) {
                 <td className="px-3 py-2 font-mono text-xs text-gray-800">{device.sn}</td>
                 <td className="px-3 py-2 font-mono text-xs text-gray-600">{device.robotNo}</td>
                 <td className="px-3 py-2 text-gray-700">{modelName(device, state.deviceTypes)}</td>
-                <td className="px-3 py-2"><Chip>{productionLabel(getProductionKey(device))}</Chip></td>
+                <td className="px-3 py-2"><StatusBadge status={productionLabel(getProductionKey(device))} /></td>
                 <td className="px-3 py-2"><StatusBadge status={currentNodeResult(device)} /></td>
                 <td className="px-3 py-2">{repairStatusLabel(device) === '—' ? <span className="text-gray-400">-</span> : <StatusBadge status={repairStatusLabel(device)} />}</td>
                 <td className="px-3 py-2 text-gray-600">{latest?.operator || device.assembler || '—'}</td>

@@ -43,3 +43,10 @@ export function deliveryErpReferences() {
     })),
   ];
 }
+
+export function erpReferenceUrl(reference, returnTo = '') {
+  const type = reference?.type === '调拨订单' ? 'transferOrder' : 'salesOutbound';
+  const params = new URLSearchParams({ tab: 'list', type, doc: reference?.no || '' });
+  if (returnTo) params.set('returnTo', returnTo);
+  return `/erp-center?${params.toString()}`;
+}

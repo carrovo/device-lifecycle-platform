@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { erpDocs } from '../data/erpDocs';
 import { TRANSFER_RECORDS } from '../data/erpPrototype';
@@ -107,6 +107,8 @@ function DocList() {
   const { state } = useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedType = searchParams.get('type');
+  const requestedDoc = searchParams.get('doc');
+  const returnTo = searchParams.get('returnTo');
   const type = TYPES.find((item) => item.key === requestedType) || TYPES[0];
   const [filters, setFilters] = useState({ query: '', dateFrom: '', dateTo: '', extras: {} });
   const [detail, setDetail] = useState(null);
@@ -123,12 +125,33 @@ function DocList() {
     });
     return queryMatched && dateMatched && extrasMatched;
   }), [type, state, filters]);
+  useEffect(() => {
+    if (!requestedDoc) return;
+    const matched = buildRecords(type, state).find((record) => record.docNo === requestedDoc);
+    setDetail(matched || {
+      id: `reference-${requestedDoc}`,
+      docNo: requestedDoc,
+      docDate: '',
+      fields: { 单据编号: requestedDoc },
+      missingSource: true,
+    });
+  }, [requestedDoc, type, state]);
   const paged = usePaged(records, 10);
   const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
   const updateExtra = (key, value) => setFilters((prev) => ({ ...prev, extras: { ...prev.extras, [key]: value } }));
   const changeType = (key) => {
     setFilters({ query: '', dateFrom: '', dateTo: '', extras: {} });
-    setSearchParams({ tab: 'list', type: key });
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'list');
+    next.set('type', key);
+    next.delete('doc');
+    setSearchParams(next);
+  };
+  const closeDetail = () => {
+    setDetail(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('doc');
+    setSearchParams(next, { replace: true });
   };
 
   return (
@@ -162,7 +185,7 @@ function DocList() {
       >
         {paged.pageItems.map((record) => (
           <tr key={record.id} className="hover:bg-[#fafafa]">
-            <td className="px-3 py-2 font-mono text-xs text-gray-700">{record.docNo}</td>
+            <td className="px-3 py-2"><button className="ui-link font-mono text-xs" onClick={() => { setDetail(record); const next = new URLSearchParams(searchParams); next.set('doc', record.docNo); setSearchParams(next); }}>{record.docNo}</button></td>
             <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{record.docDate || record.fields?.单据日期 || '—'}</td>
             {type.columns.map(([label, field]) => (
               <td key={field} className="px-3 py-2 text-gray-600">
@@ -173,7 +196,7 @@ function DocList() {
             ))}
             <td className="px-3 py-2 whitespace-nowrap">
               <div className="flex items-center gap-3">
-                <LinkAction onClick={() => setDetail(record)}>查看详情</LinkAction>
+                <LinkAction onClick={() => { setDetail(record); const next = new URLSearchParams(searchParams); next.set('doc', record.docNo); setSearchParams(next); }}>查看详情</LinkAction>
                 <LinkAction onClick={() => copyNo(record.docNo, setCopied)}>复制编号</LinkAction>
               </div>
             </td>
@@ -181,24 +204,31 @@ function DocList() {
         ))}
       </Table>
       {copied && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] rounded-md bg-gray-900 px-4 py-2 text-[13px] text-white">已复制：{copied}</div>}
-      <Modal isOpen={!!detail} onClose={() => setDetail(null)} title={detail ? `${type.label} · ${detail.docNo}` : `${type.label}详情`}>
+      <Modal isOpen={!!detail} onClose={closeDetail} title={detail ? `${type.label} · ${detail.docNo}` : `${type.label}详情`}>
         {detail && (
           <div className="space-y-5">
             <div>
               <p className="font-mono text-xs text-gray-500">{detail.docNo}</p>
               <p className="text-xs text-gray-400 mt-1">ERP 只读来源</p>
             </div>
-            <Section title="ERP 来源信息" bodyClassName="p-3">
-              <DescList cols={2} items={Object.entries(detail.fields || {}).filter(([key, value]) =>
-                !key.includes('状态')
-                && !['单据编号', '单据日期'].includes(key)
-                && value !== undefined
-                && value !== null
-                && value !== ''
-                && String(value) !== String(detail.docNo)
-                && String(value) !== String(detail.docDate || detail.fields?.单据日期 || '')
-              )} />
-            </Section>
+            {detail.missingSource && (
+              <p className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-500">
+                当前原型仅保留该来源单据编号，ERP mock 列表中暂无对应详情字段。
+              </p>
+            )}
+            {!detail.missingSource && (
+              <Section title="ERP 来源信息" bodyClassName="p-3">
+                <DescList cols={2} items={Object.entries(detail.fields || {}).filter(([key, value]) =>
+                  !key.includes('状态')
+                  && !['单据编号', '单据日期'].includes(key)
+                  && value !== undefined
+                  && value !== null
+                  && value !== ''
+                  && String(value) !== String(detail.docNo)
+                  && String(value) !== String(detail.docDate || detail.fields?.单据日期 || '')
+                )} />
+              </Section>
+            )}
             {type.key === 'productInbound' && detail.matchedDevice && (
               <Section title="设备匹配关系" bodyClassName="p-3">
                 <DescList cols={2} items={[
@@ -211,6 +241,10 @@ function DocList() {
             )}
             {['salesOutbound', 'transferOrder'].includes(type.key) && <p className="text-xs text-gray-400">该单据与单台设备的关联口径待后续业务和 ERP API 联调确认。</p>}
             <p className="text-xs text-gray-400">只读信息，不支持编辑、审核或库存修改。</p>
+            <div className="flex justify-end gap-2">
+              {returnTo && <Link className="ui-link text-[13px] self-center mr-auto" to={returnTo}>返回来源页面</Link>}
+              <button className="h-8 px-3 rounded-md border border-gray-200 text-[13px] text-gray-700 hover:bg-gray-50" onClick={closeDetail}>关闭</button>
+            </div>
           </div>
         )}
       </Modal>

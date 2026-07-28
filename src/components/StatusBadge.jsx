@@ -73,7 +73,7 @@ const TONE_GROUPS = {
   ],
   neutral: [
     '待处理', '暂无结果', '待分派', '待接单', '待上门', '未接入', '未知', '离线', '未开始', '未测试', '待测试',
-    '待录入', '待关联', '未填写', '待确认', '待绑定', '未绑定', '待交付', '待领料', '已占用', '待装配',
+    '待录入', '待关联', '未填写', '待确认', '未确认', '待绑定', '未绑定', '待交付', '待领料', '已占用', '待装配',
     '已停用', '已关闭', '已作废', '已取消', '售后中', '维修中', '待入库', '待产品入库', '待出货', '已分配项目',
     '立腿状态', '未填写', '待维护', '尚未流转', '已进入', '未进入生产', '基础识别',
     '其他', '已转售后', '中', '低',
@@ -98,6 +98,7 @@ const TONE_GROUPS = {
 };
 
 const TONE_STYLE = {
+  nodeLeg: { chip: 'bg-slate-50 text-slate-700 border-slate-200', dot: 'bg-slate-500' },
   neutral: { chip: 'bg-gray-50 text-gray-600 border-gray-200', dot: 'bg-gray-400' },
   info: { chip: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500' },
   success: { chip: 'bg-green-50 text-green-700 border-green-200', dot: 'bg-green-500' },
@@ -113,6 +114,16 @@ const TONE_STYLE = {
 
 const STATUS_TONE = {};
 Object.entries(TONE_GROUPS).forEach(([tone, list]) => list.forEach((s) => { STATUS_TONE[s] = tone; }));
+Object.assign(STATUS_TONE, {
+  立腿状态: 'nodeLeg',
+  组装一: 'info',
+  初测: 'test',
+  组装二: 'indigo',
+  终测: 'teal',
+  生产已完成: 'success',
+  返修中: 'warning',
+  待处理异常: 'warning',
+});
 
 function statusTone(status) {
   return STATUS_TONE[status] || 'neutral';

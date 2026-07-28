@@ -10,6 +10,7 @@ import ProjectsCenter from './pages/ProjectsCenter';
 import ProjectDetail from './pages/ProjectDetail';
 import ProductionPlanDetail from './pages/ProductionPlanDetail';
 import DeliveryPlanDetail from './pages/DeliveryPlanDetail';
+import DeliveryBatchDetail from './pages/DeliveryBatchDetail';
 import AssetsPage from './pages/AssetsPage';
 import DeviceDetail from './pages/DeviceDetail';
 import PlanningPlaceholder from './pages/PlanningPlaceholder';
@@ -39,6 +40,7 @@ function AppRoutes() {
         <Route path="/projects/:id" element={<ProjectDetail />} />
         <Route path="/production-plans/:id" element={<ProductionPlanDetail />} />
         <Route path="/delivery-plans/:id" element={<DeliveryPlanDetail />} />
+        <Route path="/delivery-plans/:planId/batches/:batchId" element={<DeliveryBatchDetail />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/devices/:id" element={<DeviceDetail />} />
         <Route path="/after-sales" element={<PlanningPlaceholder type="afterSales" />} />

@@ -34,9 +34,9 @@ export function Card({ children, className = '', padded = true }) {
 }
 
 // 带表头的分区卡片：标题 + 可选右侧操作 + 内容
-export function Section({ title, subtitle, right, children, className = '', bodyClassName = 'p-4' }) {
+export function Section({ title, subtitle, right, children, className = '', bodyClassName = 'p-4', ...rest }) {
   return (
-    <section className={`bg-white border border-[#ececec] rounded-lg ${className}`}>
+    <section className={`bg-white border border-[#ececec] rounded-lg ${className}`} {...rest}>
       {(title || right) && (
         <div className="flex items-center justify-between gap-3 px-4 h-11 border-b border-[#f0f0f0]">
           <div className="min-w-0">
@@ -142,6 +142,15 @@ export function StatGrid({ children, cols = 4 }) {
   return <div className={`grid grid-cols-1 ${colClass} gap-3`}>{children}</div>;
 }
 
+export function CompactProgress({ value = 0, total = 0, className = '' }) {
+  const percent = total > 0 ? Math.min(100, Math.max(0, (value / total) * 100)) : 0;
+  return (
+    <div className={`h-1.5 rounded-full bg-gray-100 overflow-hidden ${className}`} aria-label={`完成进度 ${value} / ${total}`}>
+      <div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${percent}%` }} />
+    </div>
+  );
+}
+
 /* ── 详情键值区（不把字段堆成一整屏表单） ───────────── */
 export function DescList({ items, cols = 2, className = '' }) {
   const colClass = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' }[cols] || 'sm:grid-cols-2';
@@ -163,7 +172,7 @@ export function EmptyState({ children = '暂无数据', className = '' }) {
 }
 
 /* ── 数据表格（紧凑、细分割线、浅表头） ───────────────── */
-export function Table({ head, children, empty = '暂无数据', footer, className = '' }) {
+export function Table({ head, children, empty = '暂无数据', footer, className = '', tableClassName = '' }) {
   const [autoPage, setAutoPage] = useState(1);
   const [autoPageSize, setAutoPageSize] = useState(10);
   const rows = Children.toArray(children).filter(Boolean);
@@ -186,7 +195,7 @@ export function Table({ head, children, empty = '暂无数据', footer, classNam
   return (
     <div className={`bg-white border border-[#ececec] rounded-lg overflow-hidden ${className}`}>
       <div className="overflow-x-auto">
-        <table className="w-full text-[13px] border-collapse">
+        <table className={`w-full text-[13px] border-collapse ${tableClassName}`}>
           <thead>
             <tr className="bg-[#fafafa] border-b border-[#ececec]">
               {head.map((h, i) => (

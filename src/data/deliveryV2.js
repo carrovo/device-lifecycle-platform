@@ -5,6 +5,12 @@ const FAIL_RESULTS = new Set(['NG', '未通过', '不合格']);
 
 export const DELIVERY_DEVICE_RESULTS = ['未确认', '通过', '未通过'];
 
+export function deliveryDisplayNo(plan) {
+  if (plan.displayNo && /^DP-\d+$/i.test(plan.displayNo)) return plan.displayNo.toUpperCase();
+  const number = Number(String(plan.id || '').match(/(\d+)(?!.*\d)/)?.[1]);
+  return Number.isFinite(number) ? `DP-${String(number).padStart(3, '0')}` : String(plan.id || '—');
+}
+
 export function batchDisplayName(batch) {
   return batch.supplement?.trim() ? `${batch.baseName} · ${batch.supplement.trim()}` : batch.baseName;
 }
@@ -128,16 +134,23 @@ function siteRecordsForBatch(plan, deviceIds) {
 export function normalizeDeliveryV2({
   plans,
   projects,
-  locations,
   devices,
   exceptions,
 }) {
   const projectById = new Map(projects.map((item) => [item.id, item]));
   const deviceById = new Map(devices.map((item) => [item.id, item]));
   const sequenceByProject = new Map();
+  const usedDisplayNumbers = new Set();
+  const displayNoFor = (plan) => {
+    let number = Number(deliveryDisplayNo(plan).replace(/\D/g, '')) || 1;
+    while (usedDisplayNumbers.has(number)) number += 1;
+    usedDisplayNumbers.add(number);
+    return `DP-${String(number).padStart(3, '0')}`;
+  };
 
   const deliveryPlans = plans.map((plan) => {
-    if (Array.isArray(plan.batches)) return plan;
+    const displayNo = displayNoFor(plan);
+    if (Array.isArray(plan.batches)) return { ...plan, displayNo };
     const project = projectById.get(plan.projectId);
     const bindings = plan.records?.binding || [];
     const grouped = new Map();
@@ -192,6 +205,7 @@ export function normalizeDeliveryV2({
     });
     return {
       id: plan.id,
+      displayNo,
       projectId: plan.projectId,
       plannedCount: Number(plan.targetCount) || (plan.boundDeviceIds || []).length || 1,
       owner: plan.owner || project?.manager || '',

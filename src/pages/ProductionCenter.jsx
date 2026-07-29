@@ -11,6 +11,7 @@ import {
   effectiveProductionHistory,
   getProductionKey,
   getRepairStatus,
+  hasEnteredProduction,
   hasPendingProductionException,
   isProductionComplete,
   productionLabel,
@@ -41,9 +42,6 @@ const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
 const modelName = (device, types) => types.find((item) => item.id === device.deviceTypeId)?.name || '—';
 const nextKey = (key) => PRODUCTION_STEPS[PRODUCTION_STEPS.findIndex((item) => item.key === key) + 1]?.key || null;
 const isTestNode = (key) => PRODUCTION_STEPS.find((item) => item.key === key)?.kind === 'test';
-const enteredProduction = (device) => getProductionKey(device) !== 'leg'
-  || isProductionComplete(device)
-  || effectiveProductionHistory(device).some((record) => record.result !== '已建档');
 
 function SimpleTabs({ items, active, onChange }) {
   return (
@@ -181,7 +179,7 @@ function ArchiveTab({ state, dispatch, setSearchParams }) {
   const rows = useMemo(() => state.devices
     .filter((device) => {
       const text = `${device.sn} ${device.robotNo} ${modelName(device, state.deviceTypes)}`.toLowerCase();
-      const entered = enteredProduction(device);
+      const entered = hasEnteredProduction(device);
       return (!filters.query || text.includes(filters.query.toLowerCase()))
         && (!filters.entered || (filters.entered === 'yes' ? entered : !entered))
         && (!filters.model || device.deviceTypeId === filters.model);
@@ -203,15 +201,12 @@ function ArchiveTab({ state, dispatch, setSearchParams }) {
     const id = `DEV-${String(Math.max(0, ...state.devices.map((item) => Number(String(item.id).replace(/\D/g, '')) || 0)) + 1).padStart(3, '0')}`;
     dispatch({ type: 'ADD_DEVICE', payload: {
       id, sn: form.sn, robotNo: form.robotNo, deviceTypeId: form.deviceTypeId,
-      status: '立腿状态', productionStatus: 'leg', currentProductionNode: 'leg',
+      status: '未进入生产', productionStatus: null, currentProductionNode: null,
+      productionStarted: false, productionStartedAt: '',
       productionComplete: false, repairStatus: 'none', archiveStatus: '有效',
       assembler: state.currentUser, createdAt, updatedAt: createdAt, projectId: null, locationId: null,
       erpInboundNo: '', erpBatchNo: '', electronicAcceptanceUrl: '', otherFeishuTables: [], deliveryPlanIds: [],
-      productionHistory: [{
-        id: `PH-${id}-archive`, node: 'leg', nodeLabel: '立腿状态', recordType: 'node',
-        result: '已建档', operator: state.currentUser, time: createdAt,
-        summary: '设备进入立腿状态，建立平台设备档案',
-      }],
+      productionHistory: [],
     } });
     addLog(id, '设备建档', `建立设备档案 ${form.sn}`, createdAt);
     setModal({ type: 'created', id, sn: form.sn });
@@ -228,7 +223,9 @@ function ArchiveTab({ state, dispatch, setSearchParams }) {
   const correctDevice = (form) => {
     const timestamp = nowText();
     dispatch({ type: 'UPDATE_DEVICE', payload: { id: selected.id, deviceTypeId: form.deviceTypeId, updatedAt: timestamp } });
-    addLog(selected.id, '更正设备信息', `更正设备型号；原因：${form.correctionReason}`, timestamp);
+    const oldModel = modelName(selected, state.deviceTypes);
+    const newModel = state.deviceTypes.find((item) => item.id === form.deviceTypeId)?.name || form.deviceTypeId;
+    addLog(selected.id, '更正设备信息', `设备型号：${oldModel} → ${newModel}；更正原因：${form.correctionReason}`, timestamp);
     setModal(null);
   };
   const removeDevice = () => {
@@ -236,9 +233,12 @@ function ArchiveTab({ state, dispatch, setSearchParams }) {
     setModal(null);
   };
   const operationLabel = (device) => {
-    if (device.erpInboundNo || device.projectId) return '查看建档信息';
-    if (enteredProduction(device)) return '更正信息';
-    return '编辑';
+    if (hasEnteredProduction(device)) return '更正设备信息';
+    return '编辑设备档案';
+  };
+  const productionActionLabel = (device) => {
+    if (isProductionComplete(device)) return '查看生产流转';
+    return hasEnteredProduction(device) ? '维护生产流转' : '进入生产流转';
   };
 
   return (
@@ -271,18 +271,18 @@ function ArchiveTab({ state, dispatch, setSearchParams }) {
             <td className="px-3 py-2 font-mono text-xs text-gray-800 whitespace-nowrap">{device.sn}</td>
             <td className="px-3 py-2 font-mono text-xs text-gray-600 whitespace-nowrap">{device.robotNo}</td>
             <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{modelName(device, state.deviceTypes)}</td>
-            <td className="px-3 py-2"><StatusBadge status={enteredProduction(device) ? '已进入生产' : '未进入生产'} /></td>
+            <td className="px-3 py-2"><StatusBadge status={hasEnteredProduction(device) ? '已进入生产' : '未进入生产'} /></td>
             <td className="px-3 py-2 text-gray-600">{device.assembler || '—'}</td>
             <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{device.createdAt || '—'}</td>
             <td className="px-3 py-2"><StatusBadge status={device.archiveStatus || '有效'} /></td>
             <td className="px-3 py-2 whitespace-nowrap">
               <div className="flex items-center gap-3">
                 <LinkAction onClick={() => setModal({
-                  type: device.erpInboundNo || device.projectId ? 'view' : enteredProduction(device) ? 'correct' : 'edit',
+                  type: hasEnteredProduction(device) ? 'correct' : 'edit',
                   id: device.id,
                 })}>{operationLabel(device)}</LinkAction>
-                {!enteredProduction(device) && <LinkAction className="text-red-600" onClick={() => setModal({ type: 'delete', id: device.id })}>删除</LinkAction>}
-                <LinkAction onClick={() => setSearchParams({ tab: 'flow', device: device.id })}>进入生产流转</LinkAction>
+                {!hasEnteredProduction(device) && <LinkAction className="text-red-600" onClick={() => setModal({ type: 'delete', id: device.id })}>删除</LinkAction>}
+                <LinkAction onClick={() => setSearchParams({ tab: 'flow', device: device.id })}>{productionActionLabel(device)}</LinkAction>
               </div>
             </td>
           </tr>
@@ -517,6 +517,7 @@ function ProductionHistoryTable({ device, onRevise, onCorrect }) {
     if (effective && effective.result !== '已建档') visible.push(effective);
     records.filter((record) => record.node === step.key && record.recordType === 'repair').forEach((record) => visible.push(record));
   });
+  visible.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
   const canRevise = (record) => {
     const recordIndex = PRODUCTION_STEPS.findIndex((step) => step.key === record.node);
     const laterNodeStarted = records.some((item) =>
@@ -631,9 +632,11 @@ function ErpRelation({ device }) {
 function FlowDetail({ device, state, dispatch, setSearchParams }) {
   const [active, setActive] = useState('history');
   const [modal, setModal] = useState(null);
-  const currentKey = getProductionKey(device);
+  const [formVersion, setFormVersion] = useState(0);
+  const currentKey = getProductionKey(device) || 'leg';
   const repairStatus = getRepairStatus(device);
   const history = effectiveProductionHistory(device);
+  const started = hasEnteredProduction(device);
   const completed = isProductionComplete(device);
   const logs = state.operationLogs
     .filter((item) => item.deviceId === device.id && (item.module === '生产中心' || /(生产|测试|返修|飞书|节点|设备建档|设备信息)/.test(item.actionType || '')))
@@ -646,17 +649,35 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
     } });
   };
   const updateDevice = (payload) => dispatch({ type: 'UPDATE_DEVICE', payload: { id: device.id, ...payload } });
+  const startedPayload = (timestamp) => hasEnteredProduction(device) ? {} : {
+    productionStarted: true,
+    productionStartedAt: timestamp,
+    status: '生产中',
+  };
+  const logProductionStart = (timestamp) => {
+    if (!hasEnteredProduction(device)) {
+      addLog('设备进入生产流转', '提交首条立腿状态记录，设备正式进入生产流转', '未进入生产', '立腿状态', timestamp);
+    }
+  };
 
   const saveNonTest = (form) => {
     const timestamp = nowText();
+    logProductionStart(timestamp);
     if (form.action === 'exception') {
       const record = {
         id: `PH-${device.id}-${Date.now()}`, node: currentKey, nodeLabel: productionLabel(currentKey),
         recordType: 'node', result: '已记录异常', summary: form.exceptionNote,
         operator: state.currentUser, time: timestamp,
       };
-      updateDevice({ productionHistory: [...history, record], updatedAt: timestamp });
+      updateDevice({
+        ...startedPayload(timestamp),
+        productionStatus: currentKey,
+        currentProductionNode: currentKey,
+        productionHistory: [...history, record],
+        updatedAt: timestamp,
+      });
       addLog('记录当前节点异常', form.exceptionNote, productionLabel(currentKey), productionLabel(currentKey), timestamp);
+      setFormVersion((value) => value + 1);
       return;
     }
     const next = nextKey(currentKey);
@@ -667,10 +688,12 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
       resolved: true, operator: state.currentUser, time: timestamp,
     };
     updateDevice({
+      ...startedPayload(timestamp),
       productionStatus: next || currentKey, currentProductionNode: next || currentKey,
       productionHistory: [...history, record], updatedAt: timestamp,
     });
     addLog('确认完成当前节点', record.summary, productionLabel(currentKey), productionLabel(next || currentKey), timestamp);
+    setFormVersion((value) => value + 1);
   };
 
   const saveTest = (form) => {
@@ -685,6 +708,7 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
       notes: form.notes, operator: state.currentUser, time: timestamp,
     };
     updateDevice({
+      ...startedPayload(timestamp),
       productionStatus: finishesProduction ? 'final' : next || currentKey,
       currentProductionNode: finishesProduction ? 'final' : next || currentKey,
       productionComplete: finishesProduction,
@@ -693,6 +717,7 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
       productionHistory: [...history, record], updatedAt: timestamp,
     });
     addLog(`提交${productionLabel(currentKey)}结果`, `${form.result}；${form.testSummary}`, productionLabel(currentKey), finishesProduction ? '生产已完成' : productionLabel(next || currentKey), timestamp);
+    setFormVersion((value) => value + 1);
   };
 
   const saveRepair = (form) => {
@@ -708,6 +733,7 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
       retestResult: form.retestResult, summary: form.retestNotes, operator: state.currentUser, time: timestamp,
     };
     updateDevice({
+      ...startedPayload(timestamp),
       productionStatus: finishesProduction ? 'final' : next,
       currentProductionNode: finishesProduction ? 'final' : next,
       productionComplete: finishesProduction,
@@ -716,6 +742,7 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
       productionHistory: [...history, record], updatedAt: timestamp,
     });
     addLog('提交返修及复测结果', `${form.retestResult}；${form.repairSummary}`, productionLabel(failedNode), finishesProduction ? '生产已完成' : productionLabel(next), timestamp);
+    setFormVersion((value) => value + 1);
   };
 
   const reviseResult = ({ result, summary, reason }) => {
@@ -800,22 +827,22 @@ function FlowDetail({ device, state, dispatch, setSearchParams }) {
           ['设备 SN', device.sn],
           ['机器人编号', device.robotNo],
           ['设备型号', modelName(device, state.deviceTypes)],
-          ['当前生产节点', <StatusBadge status={completed ? '生产已完成' : productionLabel(currentKey)} />],
-          ['当前节点结果', <StatusBadge status={completed ? 'Pass' : currentNodeResult(device)} />],
+          ['当前生产节点', completed ? <StatusBadge status="生产已完成" /> : started ? <StatusBadge status={productionLabel(currentKey)} /> : '—'],
+          ['当前节点结果', completed ? <StatusBadge status="Pass" /> : started ? <StatusBadge status={currentNodeResult(device)} /> : '—'],
           ['返修情况', repairStatusLabel(device) === '—' ? '—' : <StatusBadge status={repairStatusLabel(device)} />],
         ]} />
       </Section>
       <Section title="标准生产节点">
-        <Stepper steps={PRODUCTION_STEPS} current={currentKey} />
+        <Stepper steps={PRODUCTION_STEPS} current={started ? currentKey : null} />
       </Section>
 
       {!completed && (
         <Section title={`当前生产操作 · ${repairStatus === 'inProgress' ? '返修及复测' : productionLabel(currentKey)}`}>
           {repairStatus === 'inProgress'
-            ? <RepairForm device={device} onSave={saveRepair} />
+            ? <RepairForm key={`${device.id}-${currentKey}-repair-${formVersion}`} device={device} onSave={saveRepair} />
             : isTestNode(currentKey)
-              ? <TestForm device={device} node={currentKey} onSave={saveTest} />
-              : <NonTestForm device={device} onSave={saveNonTest} />}
+              ? <TestForm key={`${device.id}-${currentKey}-test-${formVersion}`} device={device} node={currentKey} onSave={saveTest} />
+              : <NonTestForm key={`${device.id}-${currentKey}-node-${formVersion}`} device={device} onSave={saveNonTest} />}
         </Section>
       )}
       {completed && !device.erpInboundNo && (
@@ -938,12 +965,12 @@ function FlowList({ state, setSearchParams }) {
                 <td className="px-3 py-2 font-mono text-xs text-gray-800">{device.sn}</td>
                 <td className="px-3 py-2 font-mono text-xs text-gray-600">{device.robotNo}</td>
                 <td className="px-3 py-2 text-gray-700">{modelName(device, state.deviceTypes)}</td>
-                <td className="px-3 py-2"><StatusBadge status={productionLabel(getProductionKey(device))} /></td>
-                <td className="px-3 py-2"><StatusBadge status={currentNodeResult(device)} /></td>
+                <td className="px-3 py-2">{hasEnteredProduction(device) ? <StatusBadge status={productionLabel(getProductionKey(device))} /> : <span className="text-gray-400">—</span>}</td>
+                <td className="px-3 py-2">{hasEnteredProduction(device) ? <StatusBadge status={currentNodeResult(device)} /> : <span className="text-gray-400">—</span>}</td>
                 <td className="px-3 py-2">{repairStatusLabel(device) === '—' ? <span className="text-gray-400">-</span> : <StatusBadge status={repairStatusLabel(device)} />}</td>
                 <td className="px-3 py-2 text-gray-600">{latest?.operator || device.assembler || '—'}</td>
                 <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{device.updatedAt || '—'}</td>
-                <td className="px-3 py-2"><LinkAction onClick={() => setSearchParams({ tab: 'flow', device: device.id })}>进入生产流转</LinkAction></td>
+                <td className="px-3 py-2"><LinkAction onClick={() => setSearchParams({ tab: 'flow', device: device.id })}>{hasEnteredProduction(device) ? '维护生产流转' : '进入生产流转'}</LinkAction></td>
               </tr>
             );
           })}

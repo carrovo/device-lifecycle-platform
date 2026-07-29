@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import { deliveryErpReferences, erpReferenceUrl } from '../data/erpPrototype';
-import { batchDisplayName, batchMetrics } from '../data/deliveryV2';
+import { batchDisplayName, batchMetrics, deliveryDisplayNo } from '../data/deliveryV2';
 import { productionProgressLabel } from '../data/prdV12';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, Input, Select, LinkAction, EmptyState,
@@ -168,6 +168,18 @@ export default function DeliveryBatchDetail() {
   const selectedRelations = relations.filter((item) => selected.includes(item.deviceId));
   const modalRelations = modal?.type === 'result-single' ? relations.filter((item) => item.deviceId === modal.deviceId) : selectedRelations;
   const modalDevices = modalRelations.map((relation) => state.devices.find((item) => item.id === relation.deviceId)).filter(Boolean);
+  const selectedException = modal?.type === 'exception-detail'
+    ? exceptions.find((item) => item.id === modal.id)
+    : null;
+  const exceptionRelation = selectedException?.sourceType === '设备结果'
+    ? relations.find((item) => (selectedException.affectedDeviceIds || []).includes(item.deviceId))
+    : null;
+  const exceptionDevice = exceptionRelation
+    ? state.devices.find((item) => item.id === exceptionRelation.deviceId)
+    : null;
+  const exceptionSiteRecord = selectedException?.sourceType === '现场记录'
+    ? batch.siteRecords.find((item) => item.id === selectedException.sourceRecordId)
+    : null;
 
   const updateBatch = (nextBatch, action, notes) => {
     const time = nowText();
@@ -212,6 +224,17 @@ export default function DeliveryBatchDetail() {
     const time = nowText();
     const record = { id: `SITE-${Date.now()}`, content: form.content.trim(), deviceIds: form.deviceIds, hasException: form.hasException, exceptionDescription: form.hasException ? form.exceptionDescription.trim() : '', documentUrl: form.documentUrl.trim(), recorder: state.currentUser, time };
     if (record.hasException) dispatch({ type: 'ADD_DELIVERY_EXCEPTION', payload: { id: `DEX-${record.id}`, deliveryPlanId: plan.id, batchId: batch.id, projectId: plan.projectId, sourceRecordId: record.id, sourceTitle: record.content.slice(0, 30), sourceType: '现场记录', affectedDeviceIds: record.deviceIds, description: record.exceptionDescription, recorder: state.currentUser, recordTime: time } });
+    record.deviceIds.forEach((deviceId) => dispatch({ type: 'ADD_OPERATION_LOG', payload: {
+      id: `LOG-${Date.now()}-${deviceId}-${record.id}`,
+      deviceId,
+      deliveryPlanId: plan.id,
+      projectId: plan.projectId,
+      operator: state.currentUser,
+      timestamp: time,
+      actionType: '新增现场记录',
+      module: '项目中心',
+      notes: `${batchDisplayName(batch)}：${record.content.slice(0, 40)}`,
+    } }));
     updateBatch({ ...batch, siteRecords: [...batch.siteRecords, record] }, '添加现场记录', record.content.slice(0, 40));
   };
   const saveResults = (form) => {
@@ -235,6 +258,18 @@ export default function DeliveryBatchDetail() {
       return { ...relation, result: form.result, actualDate: form.actualDate, actualLocationId: form.actualLocationId || relation.targetLocationId || null, resultSummary: form.resultSummary.trim(), exceptionDescription: form.result === '未通过' ? form.exceptionDescription.trim() : '', documentUrl: form.documentUrl.trim(), recorder: state.currentUser, recordTime: time, resultHistory: history };
     });
     modalRelations.forEach((relation) => {
+      const hadResult = relation.result !== '未确认';
+      dispatch({ type: 'ADD_OPERATION_LOG', payload: {
+        id: `LOG-${Date.now()}-${relation.deviceId}-${Math.random()}`,
+        deviceId: relation.deviceId,
+        deliveryPlanId: plan.id,
+        projectId: plan.projectId,
+        operator: state.currentUser,
+        timestamp: time,
+        actionType: hadResult ? '修改设备交付结果' : '录入设备交付结果',
+        module: '项目中心',
+        notes: `${batchDisplayName(batch)}：${relation.result} → ${form.result}${hadResult ? `；修改原因：${form.modificationReason.trim()}` : ''}`,
+      } });
       if (form.result !== '未通过') return;
       const sourceRecordId = `RESULT-${batch.id}-${relation.deviceId}`;
       const old = state.deliveryExceptions.find((item) => item.sourceRecordId === sourceRecordId);
@@ -244,20 +279,24 @@ export default function DeliveryBatchDetail() {
     updateBatch({ ...batch, deviceRelations: nextRelations }, modalRelations.some((item) => item.result !== '未确认') ? '修订设备交付结果' : '录入设备交付结果', `${modalRelations.length} 台设备：${form.result}`);
     setSelected([]);
   };
-  const toggleSelected = (deviceId) => setSelected((prev) => prev.includes(deviceId) ? prev.filter((item) => item !== deviceId) : [...prev, deviceId]);
+  const toggleSelected = (deviceId) => {
+    const relation = relations.find((item) => item.deviceId === deviceId);
+    if (!relation || relation.result !== '未确认') return;
+    setSelected((prev) => prev.includes(deviceId) ? prev.filter((item) => item !== deviceId) : [...prev, deviceId]);
+  };
 
   return <Page>
     <PageHeader
       breadcrumb={<div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={`/projects/${project?.id}?tab=delivery`}>项目详情</Link><span>/</span><Link className="ui-link" to={returnTo}>交付执行</Link><span>/</span><span>{batchDisplayName(batch)}</span></div>}
       title={batchDisplayName(batch)}
-      description={`${plan.id} · ${project?.name || '—'} · ${metrics.summary}`}
+      description={`${deliveryDisplayNo(plan)} · ${project?.name || '—'} · ${metrics.summary}`}
       actions={<Btn onClick={() => setModal({ type: 'edit' })}>编辑批次信息</Btn>}
     />
 
     <Section title="批次概览">
       <DescList cols={4} items={[
         ['批次展示名称', batchDisplayName(batch)], ['系统内部批次编号', <span className="font-mono">{batch.id}</span>],
-        ['所属交付执行', <Link className="ui-link font-mono" to={returnTo}>{plan.id}</Link>], ['项目', project ? <Link className="ui-link" to={`/projects/${project.id}?tab=delivery`}>{project.name}</Link> : '—'],
+        ['所属交付执行', <Link className="ui-link font-mono" to={returnTo}>{deliveryDisplayNo(plan)}</Link>], ['项目', project ? <Link className="ui-link" to={`/projects/${project.id}?tab=delivery`}>{project.name}</Link> : '—'],
         ['目标点位', targetLocation?.name || '暂未关联点位'], ['设备数量', `${metrics.total} 台`], ['计划交付日期', batch.plannedDate || '—'], ['批次负责人', batch.owner || '—'],
         ['设备结果汇总', metrics.summary], ['通过 / 未通过 / 未确认', `${metrics.passed} / ${metrics.failed} / ${metrics.unconfirmed}`], ['最近更新时间', batch.updatedAt || '—'], ['备注', batch.notes || '—'],
       ]} />
@@ -284,7 +323,12 @@ export default function DeliveryBatchDetail() {
           const device = state.devices.find((item) => item.id === relation.deviceId);
           const exceptionCount = exceptions.filter((item) => (item.affectedDeviceIds || []).includes(relation.deviceId)).length;
           return <tr key={relation.id} className="hover:bg-[#fafafa]">
-            <td className="px-3 py-2"><input type="checkbox" checked={selected.includes(relation.deviceId)} onChange={() => toggleSelected(relation.deviceId)} /></td>
+            <td className="px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <input type="checkbox" disabled={relation.result !== '未确认'} title={relation.result !== '未确认' ? '已有交付结果，请使用修改结果' : '选择设备'} checked={selected.includes(relation.deviceId)} onChange={() => toggleSelected(relation.deviceId)} />
+                {relation.result !== '未确认' && <span className="text-[11px] text-gray-400 whitespace-nowrap">已有结果</span>}
+              </div>
+            </td>
             <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/devices/${device?.id}?tab=project&returnTo=${encodeURIComponent(currentBatchUrl)}`}>{device?.sn || '—'}</Link></td><td className="px-3 py-2 font-mono text-xs">{device?.robotNo || '—'}</td>
             <td className="px-3 py-2 text-gray-600">{state.deviceTypes.find((item) => item.id === device?.deviceTypeId)?.name || '—'}</td><td className="px-3 py-2"><StatusBadge status={productionProgressLabel(device)} /></td>
             <td className="px-3 py-2">{device?.erpInboundNo ? '已关联' : '未关联'}</td><td className="px-3 py-2">{targetLocation?.name || '—'}</td>
@@ -316,7 +360,7 @@ export default function DeliveryBatchDetail() {
         {exceptions.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]"><td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle}</td><td className="px-3 py-2">{item.sourceType}</td><td className="px-3 py-2 font-mono text-xs">{(item.affectedDeviceIds || []).length ? (item.affectedDeviceIds || []).map((id) => {
           const device = state.devices.find((candidate) => candidate.id === id);
           return device ? <Link key={device.id} className="ui-link mr-2" to={`/devices/${device.id}?tab=project&returnTo=${encodeURIComponent(`${currentBatchUrl}#exceptions`)}`}>{device.sn}</Link> : null;
-        }) : '批次级'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.description}</td><td className="px-3 py-2">{item.recorder}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime}</td><td className="px-3 py-2"><a className="ui-link text-[13px]" href={item.sourceType === '设备结果' ? '#batch-devices' : '#site-records'}>查看详情</a></td></tr>)}
+        }) : '批次级'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.description}</td><td className="px-3 py-2">{item.recorder}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime}</td><td className="px-3 py-2"><LinkAction onClick={() => setModal({ type: 'exception-detail', id: item.id })}>查看详情</LinkAction></td></tr>)}
       </Table>
     </Section>
 
@@ -332,6 +376,32 @@ export default function DeliveryBatchDetail() {
     <Modal size="lg" isOpen={modal?.type === 'site'} onClose={() => setModal(null)} title="添加现场记录"><SiteRecordForm devices={devices} onClose={() => setModal(null)} onSave={saveSiteRecord} /></Modal>
     <Modal size="xl" isOpen={modal?.type === 'result-single' || modal?.type === 'result-batch'} onClose={() => setModal(null)} title={modalRelations.some((item) => item.result !== '未确认') ? '修改设备交付结果' : '录入设备交付结果'}>
       {modalRelations.length ? <DeviceResultForm batch={batch} relations={modalRelations} devices={modalDevices} locations={locations} onClose={() => setModal(null)} onSave={saveResults} /> : <EmptyState>请先选择设备</EmptyState>}
+    </Modal>
+    <Modal size="lg" isOpen={modal?.type === 'exception-detail'} onClose={() => setModal(null)} title={selectedException?.sourceType === '设备结果' ? '设备交付结果详情' : '现场记录详情'}>
+      {selectedException && (selectedException.sourceType === '设备结果' ? (
+        <div className="space-y-4">
+          <DescList cols={2} items={[
+            ['设备 SN', exceptionDevice?.sn || '—'],
+            ['当前交付结果', exceptionRelation ? <StatusBadge status={exceptionRelation.result} /> : '—'],
+            ['异常说明', selectedException.description || exceptionRelation?.exceptionDescription || '—'],
+            ['结果记录人', exceptionRelation?.recorder || selectedException.recorder || '—'],
+            ['结果记录时间', exceptionRelation?.recordTime || selectedException.recordTime || '—'],
+            ['历史修订数量', `${exceptionRelation?.resultHistory?.length || 0} 条`],
+          ]} />
+          {!!exceptionRelation?.resultHistory?.length && <Table head={['原结果', '原结果说明', '修改原因', '原记录人 / 时间', '修订时间']}>
+            {exceptionRelation.resultHistory.map((item, index) => <tr key={`${exceptionRelation.id}-history-${index}`}><td className="px-3 py-2"><StatusBadge status={item.result} /></td><td className="px-3 py-2 text-xs text-gray-600">{item.resultSummary || item.exceptionDescription || '—'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.modificationReason || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recorder || '—'} / {item.recordTime || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{item.revisedAt || '—'}</td></tr>)}
+          </Table>}
+        </div>
+      ) : (
+        <DescList cols={2} items={[
+          ['记录内容', exceptionSiteRecord?.content || selectedException.sourceTitle || '—'],
+          ['关联设备', exceptionSiteRecord?.deviceIds?.length ? exceptionSiteRecord.deviceIds.map((id) => state.devices.find((item) => item.id === id)?.sn).filter(Boolean).join('、') : '批次级'],
+          ['异常说明', exceptionSiteRecord?.exceptionDescription || selectedException.description || '—'],
+          ['相关资料', exceptionSiteRecord?.documentUrl ? <a className="ui-link" href={exceptionSiteRecord.documentUrl} target="_blank" rel="noreferrer">打开资料</a> : '—'],
+          ['记录人', exceptionSiteRecord?.recorder || selectedException.recorder || '—'],
+          ['记录时间', exceptionSiteRecord?.time || selectedException.recordTime || '—'],
+        ]} />
+      ))}
     </Modal>
   </Page>;
 }

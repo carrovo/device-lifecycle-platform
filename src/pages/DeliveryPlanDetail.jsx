@@ -7,7 +7,7 @@ import { Pagination, usePaged } from '../components/Pagination';
 import { isProductionComplete, productionProgressLabel } from '../data/prdV12';
 import { deliveryErpReferences } from '../data/erpPrototype';
 import {
-  batchDisplayName, batchMetrics, deliveryMetrics, deliveryRelations,
+  batchDisplayName, batchMetrics, deliveryDisplayNo, deliveryMetrics, deliveryRelations,
 } from '../data/deliveryV2';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, Input, Select, LinkAction,
@@ -107,9 +107,10 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
   });
   const projectDevices = state.devices.filter((item) => item.projectId === plan.projectId);
   const remainingSlots = Math.max(0, Number(plan.plannedCount) - deliveryMetrics(plan).included);
-  const allRows = projectDevices.map((device) => {
+  const allRows = state.devices.map((device) => {
     let reason = '';
-    if (!isProductionComplete(device)) reason = '生产尚未完成';
+    if (device.projectId !== plan.projectId) reason = '设备所属项目与当前交付项目不一致';
+    else if (!isProductionComplete(device)) reason = '生产尚未完成';
     else if (!device.erpInboundNo) reason = 'ERP 产品入库未关联';
     else if (existingInPlan.has(device.id)) reason = '已加入当前交付执行其他批次';
     else if (occupiedElsewhere.has(device.id)) reason = `已被其他未完成交付执行占用（${occupiedElsewhere.get(device.id)}）`;
@@ -121,6 +122,7 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
     .filter(({ device }) => !query || `${device.sn} ${device.robotNo} ${device.model || ''}`.toLowerCase().includes(query.toLowerCase()))
     .filter(({ device }) => !selectedOnly || form.deviceIds.includes(device.id));
   const eligibleCount = allRows.filter((item) => !item.reason).length;
+  const selectedInvalid = allRows.some(({ device, reason }) => reason && form.deviceIds.includes(device.id));
   const productionCount = projectDevices.filter(isProductionComplete).length;
   const inboundCount = projectDevices.filter((item) => item.erpInboundNo).length;
   const references = deliveryErpReferences();
@@ -138,6 +140,7 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
     if (form.supplement.trim().length > 30) next.supplement = '批次补充说明不能超过 30 个字符。';
     if (!form.owner) next.owner = '请选择批次负责人。';
     if (!form.deviceIds.length) next.deviceIds = '请至少选择一台设备。';
+    if (selectedInvalid) next.deviceIds = '已选设备中存在不再符合当前项目、点位或占用条件的设备，请重新选择。';
     if (form.deviceIds.length > remainingSlots) next.deviceIds = `当前最多还可纳入 ${remainingSlots} 台设备。`;
     if ((form.feishuName && !form.feishuUrl) || (!form.feishuName && form.feishuUrl)) next.feishu = '补充链接的名称和链接需同时填写。';
     if (form.feishuUrl && !/^https?:\/\/\S+$/i.test(form.feishuUrl)) next.feishu = '请输入有效的飞书链接。';
@@ -162,6 +165,10 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
         <div className="flex items-center justify-between gap-3"><h3 className="text-[13px] font-semibold text-gray-800">本批次设备 <span className="text-red-500">*</span></h3><div className="flex items-center gap-2"><label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap"><input type="checkbox" checked={selectedOnly} onChange={(event) => setSelectedOnly(event.target.checked)} />仅看已选择</label><SearchInput className="w-52" placeholder="搜索 SN / 机器人编号" value={query} onChange={(event) => setQuery(event.target.value)} /></div></div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500"><span>当前项目生产已完成：{productionCount} 台</span><span>ERP 产品入库已关联：{inboundCount} 台</span><span>当前符合条件：{eligibleCount} 台</span></div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs font-medium text-gray-700"><span>已选择 {form.deviceIds.length} 台</span><span>当前最多还可选择 {Math.max(0, remainingSlots - form.deviceIds.length)} 台</span></div>
+        {eligibleCount === 0 && <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600">
+          <p className="font-medium text-gray-700">当前暂无符合条件的设备，无法创建交付批次。</p>
+          <p className="mt-1 leading-5">请检查设备是否已加入其他批次、被其他交付执行占用、项目或点位存在冲突、计划数量已达上限，以及生产和 ERP 产品入库是否已完成。</p>
+        </div>}
         <div className="max-h-72 overflow-auto rounded-md border border-gray-200">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-gray-50 text-gray-500"><tr><th className="p-2 text-left">选择</th><th className="p-2 text-left">设备 SN</th><th className="p-2 text-left">机器人编号</th><th className="p-2 text-left">型号</th><th className="p-2 text-left">生产进度</th><th className="p-2 text-left">ERP 入库</th><th className="p-2 text-left">当前点位</th><th className="p-2 text-left">选择条件</th></tr></thead>
@@ -193,7 +200,7 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
         {errors.feishu && <p className="text-xs text-red-600">{errors.feishu}</p>}
         <div><label className="block text-xs text-gray-600 mb-1">备注</label><textarea className="ui-input w-full min-h-16" value={form.notes} onChange={(event) => update('notes', event.target.value)} /></div>
       </div>
-      <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-gray-100 bg-white px-1 py-3"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>新增交付批次</Btn></div>
+      <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-gray-100 bg-white px-1 py-3"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" disabled={eligibleCount === 0 || !form.deviceIds.length || selectedInvalid} onClick={submit}>新增交付批次</Btn></div>
     </div>
   );
 }
@@ -234,6 +241,25 @@ export default function DeliveryPlanDetail() {
     updatePlan(payload, '编辑交付执行基础信息', modificationReason || '更新负责人、目标日期或需求信息');
   };
   const saveBatch = (form) => {
+    const currentMetrics = deliveryMetrics(plan);
+    const occupiedInPlan = new Set(deliveryRelations(plan).map((item) => item.deviceId));
+    const occupiedInActivePlans = new Set(state.deliveryPlans
+      .filter((item) => item.id !== plan.id && !deliveryMetrics(item).isCompleted)
+      .flatMap((item) => deliveryRelations(item).map((relation) => relation.deviceId)));
+    const invalidDevice = form.deviceIds.some((deviceId) => {
+      const device = state.devices.find((item) => item.id === deviceId);
+      return !device
+        || device.projectId !== plan.projectId
+        || !isProductionComplete(device)
+        || !device.erpInboundNo
+        || occupiedInPlan.has(deviceId)
+        || occupiedInActivePlans.has(deviceId)
+        || (form.locationId && device.locationId && device.locationId !== form.locationId);
+    });
+    if (!form.deviceIds.length || invalidDevice || currentMetrics.included + form.deviceIds.length > Number(plan.plannedCount)) {
+      window.alert('设备选择条件已发生变化，请重新检查当前批次设备后再提交。');
+      return;
+    }
     const time = nowText();
     const batchId = `BAT-${plan.id}-${String(form.sequence).padStart(2, '0')}-${Date.now()}`;
     const references = deliveryErpReferences();
@@ -275,6 +301,17 @@ export default function DeliveryPlanDetail() {
     form.deviceIds.forEach((deviceId) => {
       const device = state.devices.find((item) => item.id === deviceId);
       dispatch({ type: 'UPDATE_DEVICE', payload: { id: deviceId, deliveryPlanId: plan.id, deliveryPlanIds: [...new Set([...(device?.deliveryPlanIds || []), plan.id])], deliveryBatchId: batchId, updatedAt: time } });
+      dispatch({ type: 'ADD_OPERATION_LOG', payload: {
+        id: `LOG-${Date.now()}-${deviceId}`,
+        deviceId,
+        deliveryPlanId: plan.id,
+        projectId: plan.projectId,
+        operator: state.currentUser,
+        timestamp: time,
+        actionType: '设备加入交付批次',
+        module: '项目中心',
+        notes: batchDisplayName(batch),
+      } });
     });
     updatePlan({ batches: [...plan.batches, batch], nextBatchSequence: form.sequence + 1 }, '新增交付批次', `${batchDisplayName(batch)}，纳入 ${form.deviceIds.length} 台设备`);
   };
@@ -295,7 +332,7 @@ export default function DeliveryPlanDetail() {
       <PageHeader
         breadcrumb={<div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>{returnTo.startsWith('/projects/') ? '项目详情' : '交付执行列表'}</Link><span>/</span><span>交付执行</span></div>}
         title={`${project?.name || '项目'} · 交付执行`}
-        description={`${plan.id} · 交付负责人 ${plan.owner || '—'} · 目标完成日期 ${plan.targetDate || '未设置'} · 当前完成 ${metrics.completed} / ${metrics.planned}`}
+        description={`${deliveryDisplayNo(plan)} · 交付负责人 ${plan.owner || '—'} · 目标完成日期 ${plan.targetDate || '未设置'} · 当前完成 ${metrics.completed} / ${metrics.planned}`}
         actions={<><Btn onClick={() => setModal({ type: 'edit' })}>编辑基础信息</Btn><Btn variant="primary" onClick={() => setModal({ type: 'batch' })}>新增交付批次</Btn></>}
       />
       <TabBar active={active} onChange={setActive} />

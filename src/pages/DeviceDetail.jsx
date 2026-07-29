@@ -2,9 +2,9 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import StatusBadge from '../components/StatusBadge';
 import {
-  SHARED_FEISHU_TABLES, productionLabel, productionProgressLabel, productionTimeline,
+  SHARED_FEISHU_TABLES, hasEnteredProduction, isProductionComplete, productionLabel, productionProgressLabel, productionTimeline,
 } from '../data/prdV12';
-import { batchDisplayName, relationForDevice } from '../data/deliveryV2';
+import { batchDisplayName, deliveryDisplayNo, relationForDevice } from '../data/deliveryV2';
 import { erpReferenceUrl } from '../data/erpPrototype';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, LinkAction, EmptyState,
@@ -64,15 +64,14 @@ export default function DeviceDetail() {
   const deliveries = deliveryEntries.map((item) => item.plan);
   const deliveryIds = new Set(deliveries.map((item) => item.id));
   const exceptions = state.deliveryExceptions.filter((item) => deliveryIds.has(item.deliveryPlanId) && (item.affectedDeviceIds || []).includes(device.id));
-  const logs = [
-    ...state.operationLogs.filter((item) => item.deviceId === device.id),
-    ...deliveries.flatMap((plan) => (plan.operationLogs || []).map((item) => ({
-      ...item, id: `${plan.id}-${item.id}-${device.id}`, timestamp: item.time, actionType: item.action,
-      notes: `${plan.id}：${item.notes || ''}`, module: '项目中心',
-    }))),
-  ].sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+  const logs = state.operationLogs
+    .filter((item) => item.deviceId === device.id)
+    .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+  const productionAction = isProductionComplete(device)
+    ? '查看生产流转'
+    : hasEnteredProduction(device) ? '维护生产流转' : '进入生产流转';
   const actions = <>
-    <Btn as="link" to={`/production?tab=flow&device=${device.id}`}>进入生产流转</Btn>
+    <Btn as="link" to={`/production?tab=flow&device=${device.id}`}>{productionAction}</Btn>
     {project && <Btn as="link" to={`/projects/${project.id}`}>查看项目详情</Btn>}
     {deliveries.length === 1 && <Btn as="link" to={`/delivery-plans/${deliveries[0].id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看交付执行</Btn>}
     {deliveries.length > 1 && <Btn onClick={() => setActive('project')}>查看交付执行</Btn>}
@@ -107,7 +106,7 @@ export default function DeviceDetail() {
       </>}
 
       {active === 'production' && <>
-        <Section title="生产履历" right={<Btn size="sm" as="link" to={`/production?tab=flow&device=${device.id}`}>进入生产流转</Btn>} bodyClassName="p-0">
+        <Section title="生产履历" right={<Btn size="sm" as="link" to={`/production?tab=flow&device=${device.id}`}>{productionAction}</Btn>} bodyClassName="p-0">
           <Table head={['节点名称', '节点处理结果', '备注或结果摘要', '返修 / 换件摘要', '复测结果', '操作人', '操作时间']} empty="暂无生产履历">
             {productionTimeline(device).map((record) => <tr key={record.id} className="hover:bg-[#fafafa]">
               <td className="px-3 py-2 text-gray-700">{record.nodeLabel || productionLabel(record.node)}{record.revisions?.length ? <span className="ml-2 text-xs text-gray-400">已修订</span> : null}</td><td className="px-3 py-2"><StatusBadge status={record.result || '已完成'} /></td>
@@ -132,7 +131,7 @@ export default function DeviceDetail() {
               const batch = relation.batch;
               const exceptionCount = exceptions.filter((item) => item.deliveryPlanId === plan.id).length;
               return <tr key={plan.id} className="hover:bg-[#fafafa]">
-                <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{plan.id}</Link></td>
+                <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{deliveryDisplayNo(plan)}</Link></td>
                 <td className="px-3 py-2"><Link className="ui-link" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{batchDisplayName(batch)}</Link></td>
                 <td className="px-3 py-2 text-gray-600">{state.projects.find((item) => item.id === plan.projectId) ? <Link className="ui-link" to={`/projects/${plan.projectId}?tab=delivery`}>{state.projects.find((item) => item.id === plan.projectId)?.name}</Link> : '—'}</td>
                 <td className="px-3 py-2 text-gray-600">{state.locations.find((item) => item.id === relation.targetLocationId)?.name || '—'} / {state.locations.find((item) => item.id === relation.actualLocationId)?.name || '—'}</td>
@@ -164,7 +163,7 @@ export default function DeviceDetail() {
         <Section id="device-delivery-exceptions" title="交付异常" bodyClassName="p-0">
           {exceptions.length ? <Table head={['关联交付执行', '来源记录标题', '异常来源类型', '异常说明', '记录人', '记录时间', '操作']}>
             {exceptions.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]">
-              <td className="px-3 py-2 font-mono text-xs">{item.deliveryPlanId}</td><td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle || '交付记录'}</td><td className="px-3 py-2 text-gray-600">{item.sourceType || '—'}</td>
+              <td className="px-3 py-2 font-mono text-xs">{deliveryDisplayNo(deliveries.find((plan) => plan.id === item.deliveryPlanId) || { id: item.deliveryPlanId })}</td><td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle || '交付记录'}</td><td className="px-3 py-2 text-gray-600">{item.sourceType || '—'}</td>
               <td className="px-3 py-2 text-xs text-gray-600">{item.description}</td><td className="px-3 py-2 text-gray-600">{item.recorder || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime || '—'}</td>
               <td className="px-3 py-2"><LinkAction to={`/delivery-plans/${item.deliveryPlanId}`}>查看交付执行详情</LinkAction></td>
             </tr>)}

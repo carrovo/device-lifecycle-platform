@@ -4,13 +4,20 @@ import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import { Pagination, usePaged } from '../components/Pagination';
-import { deliveryMetrics } from '../data/deliveryV2';
+import { deliveryDisplayNo, deliveryMetrics } from '../data/deliveryV2';
 import {
-  Page, PageHeader, Toolbar, SearchInput, Select, Input, Table, Btn, LinkAction, CompactProgress,
+  Page, PageHeader, Toolbar, SearchInput, Select, Input, Table, Btn, LinkAction, CompactProgress, Chip,
 } from '../components/ui';
 
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
 const PROJECT_TYPES = ['智魔方', '机场', '工业场景', '遥操数采'];
+const PROJECT_TYPE_STYLES = {
+  智魔方: 'bg-purple-50 text-purple-700 border-purple-100',
+  工业场景: 'bg-blue-50 text-blue-700 border-blue-100',
+  机场: 'bg-teal-50 text-teal-700 border-teal-100',
+  遥操数采: 'bg-orange-50 text-orange-700 border-orange-100',
+};
+const DEFAULT_PROJECT_TYPE_STYLE = 'bg-gray-50 text-gray-600 border-gray-200';
 
 function ProjectForm({ project, state, onClose, onSave }) {
   const [form, setForm] = useState({
@@ -88,20 +95,31 @@ function ProjectList() {
         <SearchInput className="w-64" placeholder="搜索项目名称 / 客户 / 负责人" value={filters.query} onChange={(event) => update('query', event.target.value)} />
         <Select value={filters.type} onChange={(event) => update('type', event.target.value)}><option value="">全部项目类型</option>{PROJECT_TYPES.map((item) => <option key={item}>{item}</option>)}</Select>
         <Select value={filters.manager} onChange={(event) => update('manager', event.target.value)}><option value="">全部负责人</option>{managers.map((item) => <option key={item}>{item}</option>)}</Select>
-        <Select value={filters.hasDevice} onChange={(event) => update('hasDevice', event.target.value)}><option value="">设备关联不限</option><option value="yes">已关联设备</option><option value="no">未关联设备</option></Select>
-        <Select value={filters.hasDelivery} onChange={(event) => update('hasDelivery', event.target.value)}><option value="">交付执行不限</option><option value="yes">存在交付执行</option><option value="no">暂无交付执行</option></Select>
+        <Select value={filters.hasDevice} onChange={(event) => update('hasDevice', event.target.value)}><option value="">全部设备关联情况</option><option value="yes">已关联设备</option><option value="no">未关联设备</option></Select>
+        <Select value={filters.hasDelivery} onChange={(event) => update('hasDelivery', event.target.value)}><option value="">全部交付执行情况</option><option value="yes">存在交付执行</option><option value="no">暂无交付执行</option></Select>
         <Input type="date" value={filters.updated} onChange={(event) => update('updated', event.target.value)} />
       </Toolbar>
-      <Table head={['项目名称', '项目类型 / 业务场景', '项目负责人', '点位数量', '设备数量', '最近更新时间', '操作']} empty="暂无符合条件的项目" footer={<Pagination {...paged} onChange={paged.setPage} onPageSizeChange={paged.setPageSize} />}>
-        {paged.pageItems.map((project) => (
-          <tr key={project.id} className="hover:bg-[#fafafa]">
-            <td className="px-3 py-2"><Link className="ui-link font-medium" to={`/projects/${project.id}`}>{project.name}</Link></td>
-            <td className="px-3 py-2 text-gray-600">{project.projectType || '—'}</td>
-            <td className="px-3 py-2 text-gray-600">{project.manager || '—'}</td>
-            <td className="px-3 py-2 text-gray-600">{project.pointCount}</td>
-            <td className="px-3 py-2 text-gray-600">{project.deviceCount}</td>
-            <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{project.updatedAt || '—'}</td>
-            <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-3"><LinkAction to={`/projects/${project.id}`}>查看详情</LinkAction><LinkAction onClick={() => setModal({ type: 'edit', id: project.id })}>编辑项目</LinkAction></div></td>
+      <Table tableClassName="min-w-[860px]" head={['项目名称', '项目类型 / 业务场景', '项目负责人', <span className="block w-20 text-center">点位数量</span>, <span className="block w-20 text-center">设备数量</span>, '最近更新时间', '操作']} empty="暂无符合条件的项目" footer={<Pagination {...paged} onChange={paged.setPage} onPageSizeChange={paged.setPageSize} />}>
+        {paged.pageItems.map((project, index) => (
+          <tr key={project.id} className={`transition-colors hover:bg-[#f7f7f7] ${index % 2 ? 'bg-[#fcfcfc]' : ''}`}>
+            <td className="px-3 py-2.5">
+              <Link className="ui-link font-semibold text-gray-900" to={`/projects/${project.id}`}>{project.name}</Link>
+            </td>
+            <td className="px-3 py-2.5">
+              {project.projectType
+                ? <Chip className={PROJECT_TYPE_STYLES[project.projectType] || DEFAULT_PROJECT_TYPE_STYLE}>{project.projectType}</Chip>
+                : <span className="text-gray-400">—</span>}
+            </td>
+            <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap min-w-24">{project.manager || '—'}</td>
+            <td className="px-3 py-2.5 w-24 text-center text-gray-700 tabular-nums whitespace-nowrap">{project.pointCount} 个</td>
+            <td className="px-3 py-2.5 w-24 text-center text-gray-700 tabular-nums whitespace-nowrap">{project.deviceCount} 台</td>
+            <td className="px-3 py-2.5 text-xs text-gray-500 whitespace-nowrap min-w-32">{project.updatedAt || '—'}</td>
+            <td className="px-3 py-2.5 whitespace-nowrap w-36">
+              <div className="flex items-center gap-4">
+                <LinkAction to={`/projects/${project.id}`} className="font-medium">查看详情</LinkAction>
+                <LinkAction className="text-gray-400 hover:text-gray-700" onClick={() => setModal({ type: 'edit', id: project.id })}>编辑项目</LinkAction>
+              </div>
+            </td>
           </tr>
         ))}
       </Table>
@@ -110,9 +128,9 @@ function ProjectList() {
   );
 }
 
-function DeliveryForm({ state, onClose, onSave }) {
+function DeliveryForm({ state, initialProjectId = '', lockProject = false, onClose, onSave }) {
   const [form, setForm] = useState({
-    projectId: '',
+    projectId: initialProjectId,
     plannedCount: '',
     owner: state.currentUser,
     targetDate: '',
@@ -143,7 +161,7 @@ function DeliveryForm({ state, onClose, onSave }) {
       <div className="rounded-md border border-gray-200 p-4 space-y-4">
         <h3 className="text-[13px] font-semibold text-gray-800">基础信息</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div><label className="block text-xs text-gray-600 mb-1">项目 <span className="text-red-500">*</span></label><Select className="w-full" value={form.projectId} onChange={(event) => update('projectId', event.target.value)}><option value="">请选择项目</option>{state.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>{errors.projectId && <p className="text-xs text-red-600 mt-1">{errors.projectId}</p>}</div>
+          <div><label className="block text-xs text-gray-600 mb-1">项目 <span className="text-red-500">*</span></label><Select className="w-full" value={form.projectId} disabled={lockProject} onChange={(event) => update('projectId', event.target.value)}><option value="">请选择项目</option>{state.projects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>{lockProject && <p className="text-xs text-gray-400 mt-1">已从项目详情带入当前项目。</p>}{errors.projectId && <p className="text-xs text-red-600 mt-1">{errors.projectId}</p>}</div>
           <div><label className="block text-xs text-gray-600 mb-1">计划交付数量 <span className="text-red-500">*</span></label><Input className="w-full" type="number" min="1" step="1" value={form.plannedCount} onChange={(event) => update('plannedCount', event.target.value)} />{errors.plannedCount && <p className="text-xs text-red-600 mt-1">{errors.plannedCount}</p>}</div>
           <div><label className="block text-xs text-gray-600 mb-1">交付负责人 <span className="text-red-500">*</span></label><Select className="w-full" value={form.owner} onChange={(event) => update('owner', event.target.value)}><option value="">请选择负责人</option>{users.map((item) => <option key={item.id} value={item.name}>{item.name} · {item.dept}</option>)}</Select>{errors.owner && <p className="text-xs text-red-600 mt-1">{errors.owner}</p>}</div>
           <div><label className="block text-xs text-gray-600 mb-1">目标完成日期</label><Input className="w-full" type="date" value={form.targetDate} onChange={(event) => update('targetDate', event.target.value)} /></div>
@@ -155,7 +173,10 @@ function DeliveryForm({ state, onClose, onSave }) {
         <div><label className="block text-xs text-gray-600 mb-1">交付需求说明</label><textarea className="ui-input w-full min-h-20" value={form.demandDescription} onChange={(event) => update('demandDescription', event.target.value)} /></div>
         <div><label className="block text-xs text-gray-600 mb-1">相关飞书需求链接</label><Input className="w-full" placeholder="https://" value={form.feishuDemandUrl} onChange={(event) => update('feishuDemandUrl', event.target.value)} />{errors.feishuDemandUrl && <p className="text-xs text-red-600 mt-1">{errors.feishuDemandUrl}</p>}</div>
       </div>
-      <p className="text-xs text-gray-400">交付执行编号、创建人和创建时间由系统自动生成；点位、设备和外部来源在交付批次中维护。</p>
+      <div className="space-y-1 text-xs text-gray-400">
+        <p>交付执行编号、创建人和创建时间由系统自动生成；点位、设备和外部来源在交付批次中维护。</p>
+        <p>同一交付目标的分批交付请在已有交付执行中新增批次；新的独立交付目标可新建交付执行。</p>
+      </div>
       <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>新建交付执行</Btn></div>
     </div>
   );
@@ -164,8 +185,11 @@ function DeliveryForm({ state, onClose, onSave }) {
 function DeliveryList() {
   const { state, dispatch } = useApp();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const presetProjectId = searchParams.get('projectId') || '';
+  const returnTo = searchParams.get('returnTo') || '';
   const [filters, setFilters] = useState({ query: '', projectId: '', owner: '', targetDate: '', completed: '' });
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(searchParams.get('create') === '1');
   const update = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
   const owners = [...new Set(state.deliveryPlans.map((item) => item.owner).filter(Boolean))];
   const rows = useMemo(() => state.deliveryPlans
@@ -174,7 +198,7 @@ function DeliveryList() {
       projectName: state.projects.find((item) => item.id === plan.projectId)?.name || '—',
       metrics: deliveryMetrics(plan),
     }))
-    .filter((plan) => (!filters.query || plan.id.toLowerCase().includes(filters.query.toLowerCase()))
+    .filter((plan) => (!filters.query || `${plan.id} ${deliveryDisplayNo(plan)}`.toLowerCase().includes(filters.query.toLowerCase()))
       && (!filters.projectId || plan.projectId === filters.projectId)
       && (!filters.owner || plan.owner === filters.owner)
       && (!filters.targetDate || plan.targetDate === filters.targetDate)
@@ -183,13 +207,15 @@ function DeliveryList() {
   const paged = usePaged(rows, 10);
   const save = (form) => {
     const timestamp = nowText();
-    const nextNumber = Math.max(0, ...state.deliveryPlans.map((item) => Number(String(item.id).replace(/\D/g, '')) || 0)) + 1;
-    const id = `DE-${String(nextNumber).padStart(3, '0')}`;
+    const usedNumbers = state.deliveryPlans.map((item) => Number(deliveryDisplayNo(item).replace(/\D/g, '')) || 0);
+    const nextNumber = Math.max(0, ...usedNumbers) + 1;
+    const id = `DP-${String(nextNumber).padStart(3, '0')}`;
     const project = state.projects.find((item) => item.id === form.projectId);
     dispatch({
       type: 'ADD_DELIVERY_PLAN',
       payload: {
         id,
+        displayNo: id,
         ...form,
         createdBy: state.currentUser,
         createdAt: timestamp,
@@ -201,7 +227,11 @@ function DeliveryList() {
     });
     dispatch({ type: 'ADD_OPERATION_LOG', payload: { id: `LOG-${Date.now()}`, deliveryPlanId: id, projectId: form.projectId, operator: state.currentUser, timestamp, actionType: '新建交付执行', module: '项目中心', notes: `计划交付 ${form.plannedCount} 台` } });
     setOpen(false);
-    navigate(`/delivery-plans/${id}`);
+    navigate(`/delivery-plans/${id}${returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`);
+  };
+  const closeCreate = () => {
+    setOpen(false);
+    if (searchParams.get('create') === '1') navigate(returnTo || '/projects?tab=delivery');
   };
   return (
     <Page>
@@ -216,7 +246,7 @@ function DeliveryList() {
       <Table tableClassName="min-w-[1180px]" head={['交付执行编号', '项目', '计划交付', '已纳入批次', '已完成交付', '完成进度', '批次数量', '交付负责人', '目标完成日期', '最近更新时间', '操作']} empty="暂无交付执行" footer={<Pagination {...paged} onChange={paged.setPage} onPageSizeChange={paged.setPageSize} />}>
         {paged.pageItems.map((plan, index) => (
           <tr key={plan.id} className={`hover:bg-[#f7f7f7] ${index % 2 ? 'bg-[#fcfcfc]' : ''}`}>
-            <td className="px-3 py-2.5"><Link className="ui-link font-mono font-semibold text-gray-900" to={`/delivery-plans/${plan.id}`}>{plan.id}</Link></td>
+            <td className="px-3 py-2.5"><Link className="ui-link font-mono font-semibold text-gray-900" to={`/delivery-plans/${plan.id}`}>{deliveryDisplayNo(plan)}</Link></td>
             <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap"><Link className="ui-link" to={`/projects/${plan.projectId}?tab=delivery`}>{plan.projectName}</Link></td>
             <td className="px-3 py-2.5 text-center text-gray-600 tabular-nums">{plan.metrics.planned}</td>
             <td className="px-3 py-2.5 text-center text-gray-600 tabular-nums">{plan.metrics.included}</td>
@@ -234,7 +264,7 @@ function DeliveryList() {
           </tr>
         ))}
       </Table>
-      <Modal size="xl" isOpen={open} onClose={() => setOpen(false)} title="新建交付执行"><DeliveryForm state={state} onClose={() => setOpen(false)} onSave={save} /></Modal>
+      <Modal size="xl" isOpen={open} onClose={closeCreate} title="新建交付执行"><DeliveryForm state={state} initialProjectId={presetProjectId} lockProject={!!presetProjectId} onClose={closeCreate} onSave={save} /></Modal>
     </Page>
   );
 }

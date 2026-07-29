@@ -5,7 +5,7 @@ import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
 import { Pagination, usePaged } from '../components/Pagination';
 import { isProductionComplete, productionProgressLabel } from '../data/prdV12';
-import { batchDisplayName, deliveryMetrics } from '../data/deliveryV2';
+import { batchDisplayName, deliveryDisplayNo, deliveryMetrics } from '../data/deliveryV2';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, Input, Select, LinkAction, Chip,
 } from '../components/ui';
@@ -45,7 +45,7 @@ function LocationForm({ location, onClose, onSave }) {
 }
 
 function AssignDeviceForm({ locations, state, onClose, onSave }) {
-  const [locationId, setLocationId] = useState(locations[0]?.id || '');
+  const [locationId, setLocationId] = useState('');
   const [deviceIds, setDeviceIds] = useState([]);
   const candidates = state.devices.filter((device) => device.erpInboundNo
     && isProductionComplete(device)
@@ -53,12 +53,12 @@ function AssignDeviceForm({ locations, state, onClose, onSave }) {
   const toggle = (id) => setDeviceIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
   return (
     <div className="space-y-4">
-      <div><label className="block text-xs text-gray-500 mb-1">归属点位</label><Select className="w-full" value={locationId} onChange={(event) => setLocationId(event.target.value)}>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
+      <div><label className="block text-xs text-gray-500 mb-1">归属点位（选填）</label><Select className="w-full" value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="">暂不关联点位</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select><p className="text-xs text-gray-400 mt-1">设备可以先绑定项目，后续再在当前项目内补充点位。</p></div>
       <div className="max-h-52 overflow-y-auto rounded-md border border-gray-200 p-2 space-y-1">
         {candidates.map((device) => <label key={device.id} className="flex items-center gap-2 px-2 py-1.5 text-[13px]"><input type="checkbox" checked={deviceIds.includes(device.id)} onChange={() => toggle(device.id)} /><span className="font-mono text-xs">{device.sn}</span><span className="text-gray-400">{device.robotNo}</span></label>)}
         {!candidates.length && <p className="py-4 text-center text-xs text-gray-400">暂无完成产品入库且未绑定其他项目的设备</p>}
       </div>
-      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" disabled={!locationId || !deviceIds.length} onClick={() => onSave(locationId, deviceIds)}>确认设备归属</Btn></div>
+      <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" disabled={!deviceIds.length} onClick={() => onSave(locationId, deviceIds)}>确认设备归属</Btn></div>
     </div>
   );
 }
@@ -91,7 +91,7 @@ export default function ProjectDetail() {
   const deliveryPaged = usePaged(deliveries, 10);
   const logPaged = usePaged(logs, 10);
   const editLocation = modal?.id ? locations.find((item) => item.id === modal.id) : null;
-  const log = (actionType, notes) => dispatch({ type: 'ADD_OPERATION_LOG', payload: { id: `LOG-${Date.now()}-${actionType}`, projectId: project.id, operator: state.currentUser, timestamp: nowText(), actionType, notes } });
+  const log = (actionType, notes) => dispatch({ type: 'ADD_OPERATION_LOG', payload: { id: `LOG-${Date.now()}-${actionType}`, projectId: project.id, operator: state.currentUser, timestamp: nowText(), actionType, module: '项目中心', notes } });
   const saveProject = (form) => {
     dispatch({ type: 'UPDATE_PROJECT', payload: { id: project.id, ...form, updatedAt: nowText() } });
     log('编辑项目', '更新项目基础信息');
@@ -108,10 +108,14 @@ export default function ProjectDetail() {
     log('停用点位', location.name);
   };
   const assignDevices = (locationId, deviceIds) => {
-    deviceIds.forEach((deviceId) => dispatch({ type: 'UPDATE_DEVICE', payload: { id: deviceId, projectId: project.id, locationId, preAssignedLocationId: locationId, updatedAt: nowText() } }));
-    log('绑定项目设备', `绑定 ${deviceIds.length} 台设备到点位 ${locations.find((item) => item.id === locationId)?.name}`);
+    const timestamp = nowText();
+    const normalizedLocationId = locationId || null;
+    deviceIds.forEach((deviceId) => dispatch({ type: 'UPDATE_DEVICE', payload: { id: deviceId, projectId: project.id, locationId: normalizedLocationId, preAssignedLocationId: normalizedLocationId, updatedAt: timestamp } }));
+    const locationName = locations.find((item) => item.id === locationId)?.name;
+    log('绑定项目设备', locationName ? `绑定 ${deviceIds.length} 台设备到点位 ${locationName}` : `绑定 ${deviceIds.length} 台设备到项目，暂不关联点位`);
     setModal(null);
   };
+  const createDeliveryUrl = `/projects?tab=delivery&create=1&projectId=${encodeURIComponent(project.id)}&returnTo=${encodeURIComponent(`/projects/${project.id}?tab=delivery`)}`;
 
   return (
     <Page>
@@ -136,7 +140,7 @@ export default function ProjectDetail() {
             })}
           </Table>
         </Section>
-        <Section title={`项目设备（${devices.length}）`} right={<Btn size="sm" variant="primary" disabled={!activeLocations.length} onClick={() => setModal({ type: 'assign' })}>绑定设备</Btn>} bodyClassName="p-0">
+        <Section title={`项目设备（${devices.length}）`} right={<Btn size="sm" variant="primary" onClick={() => setModal({ type: 'assign' })}>绑定设备</Btn>} bodyClassName="p-0">
           <Table head={['设备 SN', '机器人编号', '设备型号', '生产进度', '所属点位', 'ERP 产品入库', '操作']} empty="暂无项目设备" footer={<Pagination {...devPaged} onChange={devPaged.setPage} onPageSizeChange={devPaged.setPageSize} />}>
             {devPaged.pageItems.map((device) => <tr key={device.id} className="hover:bg-[#fafafa]">
               <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/devices/${device.id}?tab=project&returnTo=${encodeURIComponent(`/projects/${project.id}?tab=locations`)}`}>{device.sn}</Link></td><td className="px-3 py-2 font-mono text-xs text-gray-600">{device.robotNo}</td>
@@ -149,12 +153,16 @@ export default function ProjectDetail() {
       </>}
 
       {active === 'delivery' && <>
-        <Section title={`交付执行（${deliveries.length}）`} bodyClassName="p-0">
-          <Table head={['交付执行编号', '计划交付', '已纳入批次', '已完成交付', '完成进度', '批次数量', '负责人', '目标完成日期', '操作']} empty="暂无交付执行" footer={<Pagination {...deliveryPaged} onChange={deliveryPaged.setPage} onPageSizeChange={deliveryPaged.setPageSize} />}>
+        <Section
+          title={`交付执行（${deliveries.length}）`}
+          right={<Btn as="link" size="sm" variant="primary" to={createDeliveryUrl}>新增交付执行</Btn>}
+          bodyClassName="p-0"
+        >
+          {deliveries.length ? <Table head={['交付执行编号', '计划交付', '已纳入批次', '已完成交付', '完成进度', '批次数量', '负责人', '目标完成日期', '操作']} empty="暂无交付执行" footer={<Pagination {...deliveryPaged} onChange={deliveryPaged.setPage} onPageSizeChange={deliveryPaged.setPageSize} />}>
             {deliveryPaged.pageItems.map((plan) => {
               const metrics = deliveryMetrics(plan);
               return <tr key={plan.id} className="hover:bg-[#fafafa]">
-                <td className="px-3 py-2"><Link className="ui-link font-mono font-medium" to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/projects/${project.id}?tab=delivery`)}`}>{plan.id}</Link></td>
+                <td className="px-3 py-2"><Link className="ui-link font-mono font-medium" to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/projects/${project.id}?tab=delivery`)}`}>{deliveryDisplayNo(plan)}</Link></td>
                 <td className="px-3 py-2 text-gray-600">{metrics.planned} 台</td>
                 <td className="px-3 py-2 text-gray-600">{metrics.included} 台</td>
                 <td className="px-3 py-2 text-gray-600">{metrics.completed} 台</td>
@@ -165,7 +173,10 @@ export default function ProjectDetail() {
                 <td className="px-3 py-2"><LinkAction to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/projects/${project.id}?tab=delivery`)}`}>查看详情</LinkAction></td>
               </tr>;
             })}
-          </Table>
+          </Table> : <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+            <p className="text-[13px] font-medium text-gray-700">当前项目暂无交付执行。</p>
+            <p className="mt-1 text-xs text-gray-400">可新建交付执行，设置计划交付数量后再创建交付批次并选择设备。</p>
+          </div>}
         </Section>
         <Section title="交付异常" bodyClassName="p-0">
           <Table head={['来源批次', '来源记录标题', '来源类型', '关联设备', '异常说明', '记录人', '记录时间', '操作']} empty="暂无交付异常">

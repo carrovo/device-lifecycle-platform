@@ -22,13 +22,20 @@ export const SHARED_FEISHU_TABLES = [
 ];
 
 const EARLY_STATUS = {
+  来料准备: 'leg',
   装配中: 'assembly1',
+  模块绑定中: 'assembly1',
   初测中: 'initial',
+  质量测试中: 'initial',
   半成品检验中: 'assembly2',
   中测中: 'assembly2',
+  OQT中: 'final',
   OQT终测中: 'final',
   终测中: 'final',
   生产返修中: 'repair',
+  NG待返修: 'repair',
+  复测中: 'repair',
+  已完成测试: 'complete',
   待入库: 'complete',
   待产品入库: 'complete',
 };
@@ -44,6 +51,7 @@ export function getRobotNo(device) {
 }
 
 export function getProductionKey(device) {
+  if (device.productionStarted === false && !isProductionComplete(device)) return null;
   const direct = device.currentProductionNode || device.productionStatus;
   if (PRODUCTION_STEP_KEYS.includes(direct)) return direct;
   if (direct === 'repair') return PRODUCTION_STEP_KEYS.includes(device.failedNode) ? device.failedNode : 'initial';
@@ -55,7 +63,7 @@ export function getProductionKey(device) {
 }
 
 export function productionLabel(key) {
-  return PRODUCTION_STEPS.find((step) => step.key === key)?.label || key || '立腿状态';
+  return PRODUCTION_STEPS.find((step) => step.key === key)?.label || key || '—';
 }
 
 export function isProductionComplete(device) {
@@ -63,10 +71,18 @@ export function isProductionComplete(device) {
   const direct = device.productionStatus;
   return ['pendingInbound', 'inbound', 'pendingShipment'].includes(direct)
     || !!device.erpInboundNo
-    || ['待入库', '待产品入库', '已入库', '已分配项目', '待交付', '可交付', '现场安装调试中', '客户验收中', '在线运营', '售后中', '已停用'].includes(device.status);
+    || ['已完成测试', '待入库', '待产品入库', '已入库', '已分配项目', '待交付', '可交付', '现场安装调试中', '客户验收中', '在线运营', '售后中', '已停用'].includes(device.status);
+}
+
+export function hasEnteredProduction(device) {
+  if (isProductionComplete(device)) return true;
+  if (device.productionStarted === false) return false;
+  if (device.productionStarted === true) return true;
+  return effectiveProductionHistory(device).some((record) => record.result !== '已建档');
 }
 
 export function productionProgressLabel(device) {
+  if (!hasEnteredProduction(device)) return '未进入生产';
   return isProductionComplete(device) ? '生产已完成' : productionLabel(getProductionKey(device));
 }
 
@@ -94,10 +110,11 @@ export function productionTimeline(device) {
     const effective = nodeRecords.at(-1);
     const repairs = records.filter((record) => record.node === step.key && record.recordType === 'repair');
     return [...(effective && effective.result !== '已建档' ? [effective] : []), ...repairs];
-  });
+  }).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
 }
 
 export function currentNodeResult(device) {
+  if (!hasEnteredProduction(device)) return '—';
   if (isProductionComplete(device)) return 'Pass';
   const key = getProductionKey(device);
   const step = PRODUCTION_STEPS.find((item) => item.key === key);
@@ -110,6 +127,7 @@ export function currentNodeResult(device) {
 }
 
 export function hasPendingProductionException(device) {
+  if (!hasEnteredProduction(device)) return false;
   const repairStatus = getRepairStatus(device);
   if (repairStatus === 'inProgress') return true;
   const key = getProductionKey(device);
@@ -177,7 +195,17 @@ function historyFor(device, testRecords) {
       });
     }
   });
-  return records;
+  let previousTime = 0;
+  const fallback = Date.parse(String(device.createdAt || device.assemblyTime || '').replace(' ', 'T')) || Date.now();
+  return records.map((record, index) => {
+    const parsed = Date.parse(String(record.time || '').replace(' ', 'T'));
+    const nextTime = Math.max(Number.isNaN(parsed) ? fallback : parsed, previousTime ? previousTime + 60_000 : fallback + index * 60_000);
+    previousTime = nextTime;
+    return {
+      ...record,
+      time: new Date(nextTime).toISOString().slice(0, 16).replace('T', ' '),
+    };
+  });
 }
 
 function deliveryRecordsFor(plan) {
@@ -290,13 +318,17 @@ export function normalizePrdState({ devices, testRecords, deliveryPlans, locatio
     const legacyProductionStatus = raw.productionStatus;
     const legacyRepairing = legacyProductionStatus === 'repair' || EARLY_STATUS[raw.status] === 'repair';
     const productionComplete = enteredDelivery || isProductionComplete(raw);
-    const productionStatus = legacyRepairing
+    const explicitlyNotStarted = raw.productionStarted === false && !productionComplete;
+    const productionStatus = explicitlyNotStarted
+      ? null
+      : legacyRepairing
       ? (raw.failedNode || originalProductionKey)
       : productionComplete ? 'final' : originalProductionKey;
     const early = !productionComplete;
     const robotNo = getRobotNo(raw);
     const rawLocationId = raw.locationId || raw.preAssignedLocationId || null;
-    const hasValidProjectLocation = !!raw.projectId && locationById.get(rawLocationId)?.projectId === raw.projectId;
+    const hasValidProject = !!raw.projectId;
+    const hasValidProjectLocation = !rawLocationId || locationById.get(rawLocationId)?.projectId === raw.projectId;
     const latestFailedTest = [...testRecords].reverse().find((record) => record.deviceId === raw.id && ['NG', '未通过', '不合格'].includes(record.stationResult || record.result));
     const device = {
       ...raw,
@@ -306,9 +338,9 @@ export function normalizePrdState({ devices, testRecords, deliveryPlans, locatio
       productionComplete,
       repairStatus: legacyRepairing ? 'inProgress' : raw.repairStatus || 'none',
       failedNode: legacyRepairing ? raw.failedNode || (latestFailedTest?.stationKey === 'oqt' ? 'final' : 'initial') : raw.failedNode || null,
-      projectId: enteredDelivery ? delivery.projectId : (!early && hasValidProjectLocation ? raw.projectId : null),
-      locationId: enteredDelivery ? assignedLocationId : (!early && hasValidProjectLocation ? rawLocationId : null),
-      preAssignedLocationId: enteredDelivery ? assignedLocationId : (!early && hasValidProjectLocation ? rawLocationId : null),
+      projectId: enteredDelivery ? delivery.projectId : (!early && hasValidProject ? raw.projectId : null),
+      locationId: enteredDelivery ? assignedLocationId : (!early && hasValidProject && hasValidProjectLocation ? rawLocationId : null),
+      preAssignedLocationId: enteredDelivery ? assignedLocationId : (!early && hasValidProject && hasValidProjectLocation ? rawLocationId : null),
       deliveryPlanId: enteredDelivery ? delivery.id : (early ? null : raw.deliveryPlanId || null),
       deliveryPlanIds: deliveries.map((item) => item.id),
       erpBatchNo: raw.erpInboundNo ? robotNo : '',
@@ -316,12 +348,28 @@ export function normalizePrdState({ devices, testRecords, deliveryPlans, locatio
       otherFeishuTables: (raw.otherFeishuTables || []).filter((item) => item?.name && !/^\d+$/.test(item.name.trim()) && item?.url),
       archiveStatus: raw.archiveStatus || '有效',
     };
-    device.productionHistory = (raw.productionHistory || historyFor({ ...device, productionStatus: legacyProductionStatus }, testRecords))
+    device.productionHistory = (Array.isArray(raw.productionHistory) ? raw.productionHistory : historyFor({ ...device, productionStatus: legacyProductionStatus }, testRecords))
       .filter((record) => PRODUCTION_STEP_KEYS.includes(record.node))
       .map((record) => ({
         ...record,
         recordType: record.recordType || (record.repairSummary ? 'repair' : 'node'),
       }));
+    device.productionStarted = raw.productionStarted === false && !productionComplete
+      ? false
+      : raw.productionStarted === true
+        || productionComplete
+        || (PRODUCTION_STEP_KEYS.includes(productionStatus) && raw.status !== '未进入生产')
+        || device.productionHistory.some((record) => record.result !== '已建档');
+    if (!device.productionStarted) {
+      device.productionStatus = null;
+      device.currentProductionNode = null;
+      device.productionStartedAt = '';
+    } else {
+      device.productionStartedAt = raw.productionStartedAt
+        || device.productionHistory.find((record) => record.result !== '已建档')?.time
+        || raw.createdAt
+        || '';
+    }
     if (device.productionHistory.some((record) => record.recordType === 'repair' && record.retestResult === 'Pass')) {
       device.repairStatus = 'retested';
     }

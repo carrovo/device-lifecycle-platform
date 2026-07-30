@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
@@ -7,7 +7,7 @@ import { Pagination, usePaged } from '../components/Pagination';
 import { isProductionComplete, productionProgressLabel } from '../data/prdV12';
 import { batchDisplayName, deliveryDisplayNo, deliveryMetrics } from '../data/deliveryV2';
 import {
-  Page, PageHeader, Section, DescList, Table, Btn, Input, Select, LinkAction, Chip,
+  Page, PageHeader, Section, DescList, Table, Btn, Input, Select, SearchInput, LinkAction, Chip,
 } from '../components/ui';
 
 const nowText = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
@@ -76,20 +76,38 @@ export default function ProjectDetail() {
     setSearchParams(next);
   };
   const [modal, setModal] = useState(null);
+  const [deviceLocationFilter, setDeviceLocationFilter] = useState('all');
+  const [deviceQuery, setDeviceQuery] = useState('');
   const project = state.projects.find((item) => item.id === id);
   if (!project) return <Page><PageHeader title="项目不存在" actions={<Btn as="link" to="/projects">返回项目列表</Btn>} /></Page>;
 
   const locations = state.locations.filter((item) => item.projectId === project.id);
   const activeLocations = locations.filter((item) => !item.disabled);
   const devices = state.devices.filter((item) => item.projectId === project.id);
+  const locationIds = new Set(locations.map((item) => item.id));
+  const normalizedDeviceQuery = deviceQuery.trim().toLowerCase();
+  const filteredDevices = devices.filter((device) => {
+    const matchesLocation = deviceLocationFilter === 'all'
+      || (deviceLocationFilter === 'unassigned'
+        ? !device.locationId || !locationIds.has(device.locationId)
+        : device.locationId === deviceLocationFilter);
+    const matchesQuery = !normalizedDeviceQuery
+      || `${device.sn || ''} ${device.robotNo || ''}`.toLowerCase().includes(normalizedDeviceQuery);
+    return matchesLocation && matchesQuery;
+  });
   const deliveries = state.deliveryPlans.filter((item) => item.projectId === project.id);
   const deliveryIds = new Set(deliveries.map((item) => item.id));
   const exceptions = state.deliveryExceptions.filter((item) => deliveryIds.has(item.deliveryPlanId));
   const logs = state.operationLogs.filter((item) => item.projectId === project.id).sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
   const locPaged = usePaged(locations, 10);
-  const devPaged = usePaged(devices, 10);
+  const devPaged = usePaged(filteredDevices, 10);
   const deliveryPaged = usePaged(deliveries, 10);
   const logPaged = usePaged(logs, 10);
+  useEffect(() => {
+    setDeviceLocationFilter('all');
+    setDeviceQuery('');
+    devPaged.setPage(1);
+  }, [id]);
   const editLocation = modal?.id ? locations.find((item) => item.id === modal.id) : null;
   const log = (actionType, notes) => dispatch({ type: 'ADD_OPERATION_LOG', payload: { id: `LOG-${Date.now()}-${actionType}`, projectId: project.id, operator: state.currentUser, timestamp: nowText(), actionType, module: '项目中心', notes } });
   const saveProject = (form) => {
@@ -141,6 +159,37 @@ export default function ProjectDetail() {
           </Table>
         </Section>
         <Section title={`项目设备（${devices.length}）`} right={<Btn size="sm" variant="primary" onClick={() => setModal({ type: 'assign' })}>绑定设备</Btn>} bodyClassName="p-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0f0f0] px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <SearchInput
+                className="w-64 max-w-full"
+                placeholder="搜索设备 SN / 机器人编号"
+                value={deviceQuery}
+                onChange={(event) => {
+                  setDeviceQuery(event.target.value);
+                  devPaged.setPage(1);
+                }}
+              />
+              <Select
+                className="w-64 max-w-full"
+                value={deviceLocationFilter}
+                onChange={(event) => {
+                  setDeviceLocationFilter(event.target.value);
+                  devPaged.setPage(1);
+                }}
+                aria-label="按点位筛选项目设备"
+              >
+                <option value="all">全部点位</option>
+                <option value="unassigned">暂未关联点位</option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}{location.disabled ? '（已停用）' : ''}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <span className="text-xs text-gray-400">当前展示 {filteredDevices.length} / {devices.length} 台</span>
+          </div>
           <Table head={['设备 SN', '机器人编号', '设备型号', '生产进度', '所属点位', 'ERP 产品入库', '操作']} empty="暂无项目设备" footer={<Pagination {...devPaged} onChange={devPaged.setPage} onPageSizeChange={devPaged.setPageSize} />}>
             {devPaged.pageItems.map((device) => <tr key={device.id} className="hover:bg-[#fafafa]">
               <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/devices/${device.id}?tab=project&returnTo=${encodeURIComponent(`/projects/${project.id}?tab=locations`)}`}>{device.sn}</Link></td><td className="px-3 py-2 font-mono text-xs text-gray-600">{device.robotNo}</td>

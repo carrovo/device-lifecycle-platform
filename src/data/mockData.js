@@ -155,6 +155,69 @@ export const materials = [
   { id: 'MAT-054', sn: 'SN-MOTOR-015', category: '电机', model: 'MTR-2026-C', batchNo: 'BATCH-2026-022', supplier: '迈驰驱动', quantity: 1, inspectionResult: '合格', inspector: '李四', inspectionTime: '2026-06-15 08:20', status: '维修中', notes: '编码器故障，返厂维修', manufactureDate: '2026-04-30', firmwareVersion: '', operatingHours: 400 },
 ];
 
+export const REVIEW_DATA_APPEND_IDS = {
+  version: 'project-device-readiness-v1',
+  deviceIds: ['DEV-601', 'DEV-602', 'DEV-603', 'DEV-604', 'DEV-605', 'DEV-606', 'DEV-607', 'DEV-608'],
+  projectId: 'PROJ-901',
+  locationId: 'LOC-901',
+  deliveryPlanId: 'DELIVERY-READY-901',
+};
+
+const buildCompletedProductionHistory = (deviceId, day, operator) => [
+  { id: `PH-${deviceId}-leg`, node: 'leg', nodeLabel: '立腿状态', recordType: 'node', result: '已完成', confirmed: true, summary: '立腿检查完成', operator, time: `${day} 09:00` },
+  { id: `PH-${deviceId}-assembly1`, node: 'assembly1', nodeLabel: '组装一', recordType: 'node', result: '已完成', confirmed: true, summary: '组装一检查完成', operator, time: `${day} 10:00` },
+  { id: `PH-${deviceId}-initial`, node: 'initial', nodeLabel: '初测', recordType: 'node', result: 'Pass', summary: '初测关键结果通过', operator, time: `${day} 11:30` },
+  { id: `PH-${deviceId}-assembly2`, node: 'assembly2', nodeLabel: '组装二', recordType: 'node', result: '已完成', confirmed: true, summary: '组装二检查完成', operator, time: `${day} 14:00` },
+  { id: `PH-${deviceId}-final`, node: 'final', nodeLabel: '终测', recordType: 'node', result: 'Pass', summary: '终测关键结果通过', operator, time: `${day} 16:00` },
+];
+
+const buildReviewReadyDevice = ({
+  id, sn, robotNo, deviceTypeId, productionDay, inboundDay, erpInboundNo, projectId = null, locationId = null,
+}) => ({
+  id,
+  sn,
+  robotNo,
+  deviceTypeId,
+  status: '已入库',
+  assembler: '张三',
+  assemblyTime: `${productionDay} 10:00`,
+  photoName: '',
+  exceptionNote: '',
+  attachments: [],
+  usedMaterials: [],
+  projectId,
+  locationId,
+  preAssignedLocationId: locationId,
+  productionStatus: 'final',
+  currentProductionNode: 'final',
+  productionComplete: true,
+  productionStarted: true,
+  productionStartedAt: `${productionDay} 09:00`,
+  productionHistory: buildCompletedProductionHistory(id, productionDay, '张三'),
+  repairStatus: 'none',
+  erpInboundNo,
+  erpInspectionStatus: '合格',
+  erpStockStatus: '合格可用',
+  erpSerialNo: sn,
+  erpBatchNo: robotNo,
+  warehouse: '成品库',
+  inboundTime: `${inboundDay} 09:30`,
+  archiveStatus: '有效',
+  createdAt: `${productionDay} 08:30`,
+  updatedAt: `${inboundDay} 09:30`,
+});
+
+const reviewReadyDevices = [
+  buildReviewReadyDevice({ id: 'DEV-601', sn: 'SN-DEV-601', robotNo: 'RB-0601', deviceTypeId: 'DT-001', productionDay: '2026-07-10', inboundDay: '2026-07-11', erpInboundNo: 'CPRK-2026-901' }),
+  buildReviewReadyDevice({ id: 'DEV-602', sn: 'SN-DEV-602', robotNo: 'RB-0602', deviceTypeId: 'DT-001', productionDay: '2026-07-11', inboundDay: '2026-07-12', erpInboundNo: 'CPRK-2026-902' }),
+  buildReviewReadyDevice({ id: 'DEV-603', sn: 'SN-DEV-603', robotNo: 'RB-0603', deviceTypeId: 'DT-002', productionDay: '2026-07-12', inboundDay: '2026-07-13', erpInboundNo: 'CPRK-2026-903' }),
+  buildReviewReadyDevice({ id: 'DEV-604', sn: 'SN-DEV-604', robotNo: 'RB-0604', deviceTypeId: 'DT-002', productionDay: '2026-07-13', inboundDay: '2026-07-14', erpInboundNo: 'CPRK-2026-904' }),
+  buildReviewReadyDevice({ id: 'DEV-605', sn: 'SN-DEV-605', robotNo: 'RB-0605', deviceTypeId: 'DT-001', productionDay: '2026-07-14', inboundDay: '2026-07-15', erpInboundNo: 'CPRK-2026-905' }),
+  buildReviewReadyDevice({ id: 'DEV-606', sn: 'SN-DEV-606', robotNo: 'RB-0606', deviceTypeId: 'DT-002', productionDay: '2026-07-15', inboundDay: '2026-07-16', erpInboundNo: 'CPRK-2026-906', projectId: 'PROJ-901', locationId: 'LOC-901' }),
+  buildReviewReadyDevice({ id: 'DEV-607', sn: 'SN-DEV-607', robotNo: 'RB-0607', deviceTypeId: 'DT-002', productionDay: '2026-07-16', inboundDay: '2026-07-17', erpInboundNo: 'CPRK-2026-907', projectId: 'PROJ-901' }),
+  buildReviewReadyDevice({ id: 'DEV-608', sn: 'SN-DEV-608', robotNo: 'RB-0608', deviceTypeId: 'DT-001', productionDay: '2026-07-17', inboundDay: '2026-07-18', erpInboundNo: 'CPRK-2026-908', projectId: 'PROJ-901' }),
+];
+
 // ============ 设备池（按生命周期阶段隔离） ============
 export const devices = [
   // ── A 生产中池 · WPP-001 智魔方Q1批次生产 / AlphaBot 1 / 5台（演示生产四节点）──
@@ -164,8 +227,8 @@ export const devices = [
   { id: 'DEV-013', sn: 'SN-DEV-013', deviceTypeId: 'DT-001', status: '半成品检验中', assembler: '张三', assemblyTime: '2026-05-22 10:00', photoName: 'assembly_dev013.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '', attachments: ['assembly_dev013.jpg'], usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-001', createdAt: '2026-05-22 10:00', updatedAt: '2026-06-21 09:02' },
   { id: 'DEV-025', sn: 'SN-DEV-025', deviceTypeId: 'DT-001', status: '中测中', assembler: '王五', assemblyTime: '2026-05-24 10:00', photoName: 'assembly_dev025.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '半成品检验曾发现机壳轻微变形，已更换机壳复检通过', attachments: ['assembly_dev025.jpg', 'housing_DEV025.jpg'], repairCount: 1, usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-001', createdAt: '2026-05-24 10:00', updatedAt: '2026-06-22 09:00' },
   // ── A 生产中池 · WPP-002 智魔方Q2补单生产 / AlphaBot 1 / 6台 ──
-  { id: 'DEV-014', sn: 'SN-DEV-014', deviceTypeId: 'DT-001', status: '待入库', assembler: '张三', assemblyTime: '2026-06-12 10:00', photoName: 'assembly_dev014.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '', attachments: ['assembly_dev014.jpg'], usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-002', erpInspectionStatus: '待检', erpStockStatus: '待检', createdAt: '2026-06-12 10:00', updatedAt: '2026-06-19 16:00' },
-  { id: 'DEV-015', sn: 'SN-DEV-015', deviceTypeId: 'DT-001', status: '待入库', assembler: '李四', assemblyTime: '2026-06-13 09:30', photoName: 'assembly_dev015.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '', attachments: ['assembly_dev015.jpg'], usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-002', erpInspectionStatus: '待检', erpStockStatus: '待检', createdAt: '2026-06-13 09:30', updatedAt: '2026-06-19 16:30' },
+  { id: 'DEV-014', sn: 'SN-DEV-014', deviceTypeId: 'DT-001', status: '待入库', assembler: '张三', assemblyTime: '2026-06-12 10:00', photoName: 'assembly_dev014.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '', attachments: ['assembly_dev014.jpg'], usedMaterials: [], projectId: null, productionPlanId: 'WPP-002', erpInspectionStatus: '待检', erpStockStatus: '待检', createdAt: '2026-06-12 10:00', updatedAt: '2026-06-19 16:00' },
+  { id: 'DEV-015', sn: 'SN-DEV-015', deviceTypeId: 'DT-001', status: '待入库', assembler: '李四', assemblyTime: '2026-06-13 09:30', photoName: 'assembly_dev015.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '', attachments: ['assembly_dev015.jpg'], usedMaterials: [], projectId: null, productionPlanId: 'WPP-002', erpInspectionStatus: '待检', erpStockStatus: '待检', createdAt: '2026-06-13 09:30', updatedAt: '2026-06-19 16:30' },
   { id: 'DEV-016', sn: 'SN-DEV-016', deviceTypeId: 'DT-001', status: 'OQT终测中', assembler: '赵六', assemblyTime: '2026-06-14 09:00', photoName: 'assembly_dev016.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: 'OQT终测NG：导航静态定位误差超限，已重标定返修后复测', attachments: ['assembly_dev016.jpg', 'oqt_log_DEV016.txt'], repairCount: 1, usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-002', createdAt: '2026-06-14 09:00', updatedAt: '2026-06-21 11:00' },
   { id: 'DEV-017', sn: 'SN-DEV-017', deviceTypeId: 'DT-001', status: '初测中', assembler: '王五', assemblyTime: '2026-06-19 09:00', photoName: 'assembly_dev017.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '', attachments: ['assembly_dev017.jpg'], usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-002', createdAt: '2026-06-19 09:00', updatedAt: '2026-06-20 12:00' },
   { id: 'DEV-018', sn: 'SN-DEV-018', deviceTypeId: 'DT-001', status: '中测中', assembler: '赵六', assemblyTime: '2026-06-16 11:00', photoName: 'assembly_dev018.jpg', assemblyTemplateName: 'AlphaBot 1 装配模板', exceptionNote: '中测发现散热风扇异响，已更换风扇复检通过', attachments: ['assembly_dev018.jpg'], repairCount: 1, usedMaterials: [], projectId: 'PROJ-001', productionPlanId: 'WPP-002', createdAt: '2026-06-16 11:00', updatedAt: '2026-06-20 10:00' },
@@ -235,14 +298,15 @@ export const devices = [
   { id: 'DEV-509', sn: 'SN-DEV-509', deviceTypeId: 'DT-002', status: 'NG待返修', assembler: '张三', assemblyTime: '2026-07-05 10:00', photoName: 'assembly_dev509.jpg', assemblyTemplateName: 'AlphaBot 2 装配模板', exceptionNote: '质量测试NG：待返修排查', attachments: ['assembly_dev509.jpg'], repairCount: 1, usedMaterials: [], projectId: 'PROJ-007', productionPlanId: 'WPP-010', createdAt: '2026-07-05 10:00', updatedAt: '2026-07-08 10:20' },
   { id: 'DEV-510', sn: 'SN-DEV-510', deviceTypeId: 'DT-002', status: '生产返修中', assembler: '赵六', assemblyTime: '2026-07-05 11:00', photoName: 'assembly_dev510.jpg', assemblyTemplateName: 'AlphaBot 2 装配模板', exceptionNote: '生产返修中：复测前整改', attachments: ['assembly_dev510.jpg'], repairCount: 1, usedMaterials: [], projectId: 'PROJ-007', productionPlanId: 'WPP-010', createdAt: '2026-07-05 11:00', updatedAt: '2026-07-08 10:30' },
   { id: 'DEV-511', sn: 'SN-DEV-511', deviceTypeId: 'DT-002', status: '复测中', assembler: '王五', assemblyTime: '2026-07-06 09:00', photoName: 'assembly_dev511.jpg', assemblyTemplateName: 'AlphaBot 2 装配模板', exceptionNote: '返修后复测中', attachments: ['assembly_dev511.jpg'], repairCount: 1, usedMaterials: [], projectId: 'PROJ-007', productionPlanId: 'WPP-010', createdAt: '2026-07-06 09:00', updatedAt: '2026-07-08 10:40' },
-  { id: 'DEV-512', sn: 'SN-DEV-512', deviceTypeId: 'DT-002', status: '已完成测试', assembler: '王五', assemblyTime: '2026-07-06 10:00', photoName: 'assembly_dev512.jpg', assemblyTemplateName: 'AlphaBot 2 装配模板', exceptionNote: '', attachments: ['assembly_dev512.jpg'], usedMaterials: [], projectId: 'PROJ-007', productionPlanId: 'WPP-010', createdAt: '2026-07-06 10:00', updatedAt: '2026-07-08 10:50' },
+  { id: 'DEV-512', sn: 'SN-DEV-512', deviceTypeId: 'DT-002', status: '已完成测试', assembler: '王五', assemblyTime: '2026-07-06 10:00', photoName: 'assembly_dev512.jpg', assemblyTemplateName: 'AlphaBot 2 装配模板', exceptionNote: '', attachments: ['assembly_dev512.jpg'], usedMaterials: [], projectId: null, productionPlanId: 'WPP-010', createdAt: '2026-07-06 10:00', updatedAt: '2026-07-08 10:50' },
   // HKC PROJ-008 / WPP-011（下游：待入库→已入库→在线运营→售后中(在线)→已停用(停用)→已停用(归档)）
-  { id: 'DEV-513', sn: 'SN-DEV-513', deviceTypeId: 'DT-001', status: '待入库', assembler: '李四', assemblyTime: '2026-06-20 09:00', photoName: 'assembly_dev513.jpg', usedMaterials: [], projectId: 'PROJ-008', productionPlanId: 'WPP-011', erpInspectionStatus: '待检', erpStockStatus: '待检', createdAt: '2026-06-20 09:00', updatedAt: '2026-07-08 11:00' },
+  { id: 'DEV-513', sn: 'SN-DEV-513', deviceTypeId: 'DT-001', status: '待入库', assembler: '李四', assemblyTime: '2026-06-20 09:00', photoName: 'assembly_dev513.jpg', usedMaterials: [], projectId: null, productionPlanId: 'WPP-011', erpInspectionStatus: '待检', erpStockStatus: '待检', createdAt: '2026-06-20 09:00', updatedAt: '2026-07-08 11:00' },
   { id: 'DEV-514', sn: 'SN-DEV-514', deviceTypeId: 'DT-001', status: '已入库', assembler: '李四', assemblyTime: '2026-06-18 09:00', photoName: 'assembly_dev514.jpg', usedMaterials: [], projectId: 'PROJ-008', productionPlanId: 'WPP-011', erpInboundNo: 'PI-2026-514', erpInspectionNo: 'QC-2026-514', erpInspectionStatus: '合格', erpStockStatus: '合格可用', erpSerialNo: 'SN-DEV-514', warehouse: '成品库', inboundTime: '2026-06-28 09:00', createdAt: '2026-06-18 09:00', updatedAt: '2026-06-28 09:00' },
   { id: 'DEV-515', sn: 'SN-DEV-515', deviceTypeId: 'DT-001', status: '在线运营', assembler: '李四', assemblyTime: '2026-05-10 09:00', photoName: 'assembly_dev515.jpg', usedMaterials: [], projectId: 'PROJ-008', productionPlanId: 'WPP-011', erpInboundNo: 'PI-2026-515', erpInspectionNo: 'QC-2026-515', erpInspectionStatus: '合格', erpStockStatus: '合格可用', erpSerialNo: 'SN-DEV-515', locationId: 'LOC-015', batteryPercent: 70, storagePercent: 48, online: true, createdAt: '2026-05-10 09:00', updatedAt: '2026-07-08 11:10' },
   { id: 'DEV-516', sn: 'SN-DEV-516', deviceTypeId: 'DT-001', status: '售后中', assembler: '李四', assemblyTime: '2026-05-11 09:00', photoName: 'assembly_dev516.jpg', usedMaterials: [], projectId: 'PROJ-008', productionPlanId: 'WPP-011', erpInboundNo: 'PI-2026-516', erpInspectionNo: 'QC-2026-516', erpInspectionStatus: '合格', erpStockStatus: '合格可用', erpSerialNo: 'SN-DEV-516', locationId: 'LOC-015', batteryPercent: 34, storagePercent: 62, lastHeartbeat: '2026-07-08 08:30', online: true, createdAt: '2026-05-11 09:00', updatedAt: '2026-07-08 11:20' },
   { id: 'DEV-517', sn: 'SN-DEV-517', deviceTypeId: 'DT-001', status: '已停用', assembler: '李四', assemblyTime: '2026-05-12 09:00', photoName: 'assembly_dev517.jpg', usedMaterials: [], projectId: 'PROJ-008', productionPlanId: 'WPP-011', erpInboundNo: 'PI-2026-517', erpInspectionNo: 'QC-2026-517', erpInspectionStatus: '合格', erpStockStatus: '已出库', erpSerialNo: 'SN-DEV-517', online: false, createdAt: '2026-05-12 09:00', updatedAt: '2026-07-05 18:00' },
   { id: 'DEV-518', sn: 'SN-DEV-518', deviceTypeId: 'DT-001', status: '已停用', assembler: '李四', assemblyTime: '2026-05-13 09:00', photoName: 'assembly_dev518.jpg', usedMaterials: [], projectId: 'PROJ-008', productionPlanId: 'WPP-011', erpInboundNo: 'PI-2026-518', erpInspectionNo: 'QC-2026-518', erpInspectionStatus: '合格', erpStockStatus: '已出库', erpSerialNo: 'SN-DEV-518', createdAt: '2026-05-13 09:00', updatedAt: '2026-07-06 18:00' },
+  ...reviewReadyDevices,
 ];
 
 // ============ 工站测试记录（semi/init/mid/oqt）============
@@ -555,6 +619,7 @@ export const projects = [
   { id: 'PROJ-006', name: '深圳机场项目', projectType: '机场', client: '深圳宝安国际机场', contactPerson: '航站楼运营部', contactPhone: '13600136006', background: '为深圳宝安国际机场 T3 航站楼部署智能巡检与引导机器人，覆盖生产、交付与在线运营全链路。', notes: '需满足机场安检与IP65防护要求', targetCount: 6, manager: '王五', status: '进行中', erpProjectNo: 'ERP-PJ-2026-006', members: [{ name: '王五', role: '项目负责人' }, { name: '赵六', role: '生产协同' }, { name: '张三', role: '质量协同' }, { name: '蔡八', role: 'ERP 协同' }], createdAt: '2026-03-02 09:00', updatedAt: '2026-07-08 10:00' },
   { id: 'PROJ-007', name: '北京机场项目', projectType: '机场', client: '北京大兴国际机场', contactPerson: '设备管理处', contactPhone: '13600136007', background: '为北京大兴国际机场部署引导与配送机器人，含新增生产计划与在线运营健康监测。', notes: '大兴航站楼跨区域巡检，需通过民航认证', targetCount: 6, manager: '王五', status: '进行中', erpProjectNo: 'ERP-PJ-2026-007', members: [{ name: '王五', role: '项目负责人' }, { name: '李四', role: '生产协同' }, { name: '赵六', role: '售后协同' }, { name: '蔡八', role: 'ERP 协同' }], createdAt: '2026-05-06 09:00', updatedAt: '2026-07-08 11:00' },
   { id: 'PROJ-008', name: 'HKC 项目', projectType: '工业场景', client: 'HKC 科技', contactPerson: '智能制造部', contactPhone: '13600136008', background: '为 HKC 科技面板产线部署物料搬运与在线质量巡检机器人，含在线运营、售后与停用归档样例。', notes: '面板车间洁净与防静电要求', targetCount: 6, manager: '李四', status: '进行中', erpProjectNo: 'ERP-PJ-2026-008', members: [{ name: '李四', role: '项目负责人' }, { name: '王五', role: '生产协同' }, { name: '赵六', role: '运维协同' }, { name: '陈九', role: 'ERP 协同' }], createdAt: '2026-05-20 09:00', updatedAt: '2026-07-08 12:00' },
+  { id: 'PROJ-901', name: '南方智造园项目', projectType: '工业场景', client: '南方智造园区', background: '园区智能搬运设备分批交付项目。', notes: '首阶段三台设备按现场窗口分批入场。', targetCount: 3, manager: '蔡八', members: [{ name: '蔡八', role: '项目负责人' }, { name: '赵六', role: '交付协同' }], createdAt: '2026-07-15 09:00', updatedAt: '2026-07-18 10:00' },
 ];
 
 export const deviceAllocations = [
@@ -739,6 +804,23 @@ export const deliveryPlans = [
     records: { binding: [], factoryInspection: [], siteInstall: [], customerAccept: [] } },
   { id: 'DP-010', name: '北京机场首批交付计划', batchNo: 'DB-2026-010', templateName: '通用部署流程模板', actualFinishDate: '—', projectId: 'PROJ-007', targetCount: 3, status: '已暂停', owner: '王五', currentNode: '绑定设备', factoryDate: '', siteInstallDate: '', acceptanceDate: '', dueDate: '2026-09-30', erpOutboundNo: '', erpAcceptanceNo: '', boundDeviceIds: [],
     records: { binding: [], factoryInspection: [], siteInstall: [], customerAccept: [] } },
+  {
+    id: 'DELIVERY-READY-901',
+    displayNo: 'DP-901',
+    projectId: 'PROJ-901',
+    plannedCount: 3,
+    owner: '蔡八',
+    targetDate: '2026-08-31',
+    demandDescription: '南方智造园区首阶段设备交付。',
+    feishuDemandUrl: '',
+    notes: '设备已完成生产和产品入库，待按现场安排创建交付批次。',
+    createdBy: '蔡八',
+    createdAt: '2026-07-18 10:00',
+    updatedAt: '2026-07-18 10:00',
+    nextBatchSequence: 1,
+    batches: [],
+    operationLogs: [],
+  },
 ];
 
 export const FEISHU_USERS = [
@@ -797,6 +879,7 @@ export const locations = [
   { id: 'LOC-013', projectId: 'PROJ-004', name: '远境遥操蛇口数据采集站', address: '深圳市南山区蛇口远境遥操数据采集站', deviceIds: [], plannedCount: 2, owner: '赵六', deliveryPlanIds: ['DP-008'], updatedAt: '2026-06-08 09:00' },
   { id: 'LOC-014', projectId: 'PROJ-005', name: '旧样板展位', address: '公司一层品牌展厅', deviceIds: [], plannedCount: 1, owner: '张三', disabled: true, deliveryPlanIds: ['DP-007'], updatedAt: '2026-06-01 18:00' },
   { id: 'LOC-015', projectId: 'PROJ-008', name: 'HKC 面板一号车间', address: '惠州市仲恺高新区 HKC 科技面板一号车间', deviceIds: ['DEV-515', 'DEV-516'], plannedCount: 2, owner: '赵六', deliveryPlanIds: [], updatedAt: '2026-07-08 11:20' },
+  { id: 'LOC-901', projectId: 'PROJ-901', name: '南方智造园一期车间', address: '南方智造园区一期厂房', deviceIds: ['DEV-606'], plannedCount: 3, owner: '赵六', deliveryPlanIds: [], updatedAt: '2026-07-18 10:00' },
 ];
 
 // ============ 质量问题台账 ============

@@ -22,6 +22,41 @@ export const ERP_DOC_META = [
   { key: 'serviceDelivery', label: '服务交付', group: 'outbound' },
 ]
 
+const buildReviewProductInbound = ({ sequence, deviceSn, robotNo, date, project = '—' }) => {
+  const docNo = `CPRK-2026-${sequence}`
+  return {
+    id: docNo,
+    docNo,
+    docDate: date,
+    docStatus: '已入库',
+    fields: {
+      单据日期: date,
+      单据编号: docNo,
+      库存组织: '智元制造',
+      交易类型: '产成品入库',
+      部门: '总装车间',
+      仓库: '成品库',
+      单据状态: '已入库',
+      物料名称: 'AlphaBot 整机',
+      件数: 1,
+      库存单位: '台',
+      数量: 1,
+      序列号: deviceSn,
+      批次号: robotNo,
+    },
+    link: {
+      status: '已关联',
+      objType: '设备',
+      objId: deviceSn,
+      project,
+      deviceSN: deviceSn,
+      lastLinkTime: `${date} 09:30`,
+      linkedBy: '系统匹配',
+    },
+    sync: { lastSyncTime: `${date} 09:30`, mode: '定时同步', result: '成功', sourceExists: true, lostReason: '' },
+  }
+}
+
 export const erpDocs = {
   // 1. 采购订单
   purchaseOrder: [
@@ -1273,6 +1308,14 @@ export const erpDocs = {
       },
       sync: { lastSyncTime: '2026-07-13 08:30', mode: '定时同步', result: '成功', sourceExists: true, lostReason: '' },
     },
+    buildReviewProductInbound({ sequence: '901', deviceSn: 'SN-DEV-601', robotNo: 'RB-0601', date: '2026-07-11' }),
+    buildReviewProductInbound({ sequence: '902', deviceSn: 'SN-DEV-602', robotNo: 'RB-0602', date: '2026-07-12' }),
+    buildReviewProductInbound({ sequence: '903', deviceSn: 'SN-DEV-603', robotNo: 'RB-0603', date: '2026-07-13' }),
+    buildReviewProductInbound({ sequence: '904', deviceSn: 'SN-DEV-604', robotNo: 'RB-0604', date: '2026-07-14' }),
+    buildReviewProductInbound({ sequence: '905', deviceSn: 'SN-DEV-605', robotNo: 'RB-0605', date: '2026-07-15' }),
+    buildReviewProductInbound({ sequence: '906', deviceSn: 'SN-DEV-606', robotNo: 'RB-0606', date: '2026-07-16', project: '南方智造园项目' }),
+    buildReviewProductInbound({ sequence: '907', deviceSn: 'SN-DEV-607', robotNo: 'RB-0607', date: '2026-07-17', project: '南方智造园项目' }),
+    buildReviewProductInbound({ sequence: '908', deviceSn: 'SN-DEV-608', robotNo: 'RB-0608', date: '2026-07-18', project: '南方智造园项目' }),
   ],
 
   // 10. 产品检验单

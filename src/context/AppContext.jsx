@@ -26,6 +26,7 @@ import {
   moduleInstances as initModuleInstances,
   deliveryExceptions as initDeliveryExceptions,
   FEISHU_USERS,
+  REVIEW_DATA_APPEND_IDS,
 } from '../data/mockData';
 import { normalizePrdState } from '../data/prdV12';
 import { normalizeDeliveryV2 } from '../data/deliveryV2';
@@ -34,6 +35,7 @@ const AppContext = createContext(null);
 const FEISHU_STORAGE_KEY = 'device-lifecycle-feishu-records-v1';
 const DELIVERY_STORAGE_KEY = 'device-lifecycle-delivery-v5';
 const CORE_STORAGE_KEY = 'device-lifecycle-core-v1';
+const REVIEW_APPEND_STORAGE_KEY = `device-lifecycle-${REVIEW_DATA_APPEND_IDS.version}`;
 
 function readFeishuRecords() {
   if (typeof window === 'undefined') return {};
@@ -66,6 +68,24 @@ function readStoredCore() {
   }
 }
 
+function hasAppliedReviewAppend() {
+  if (typeof window === 'undefined') return true;
+  try {
+    return window.localStorage.getItem(REVIEW_APPEND_STORAGE_KEY) === 'applied';
+  } catch {
+    return true;
+  }
+}
+
+function appendMissingById(current, defaults, ids) {
+  const existingIds = new Set(current.map((item) => item.id));
+  const allowedIds = new Set(ids);
+  return [
+    ...current,
+    ...defaults.filter((item) => allowedIds.has(item.id) && !existingIds.has(item.id)),
+  ];
+}
+
 function applyDeliveryMemberships(devices, plans) {
   const memberships = new Map();
   plans.forEach((plan) => {
@@ -88,9 +108,17 @@ function applyDeliveryMemberships(devices, plans) {
 }
 
 const storedCore = readStoredCore();
-const sourceDevices = storedCore?.devices || initDevices;
-const sourceProjects = storedCore?.projects || initProjects;
-const sourceLocations = storedCore?.locations || initLocations;
+const storedDelivery = readStoredDelivery();
+const shouldAppendReviewData = !!(storedCore || storedDelivery) && !hasAppliedReviewAppend();
+const sourceDevices = storedCore
+  ? (shouldAppendReviewData ? appendMissingById(storedCore.devices, initDevices, REVIEW_DATA_APPEND_IDS.deviceIds) : storedCore.devices)
+  : initDevices;
+const sourceProjects = storedCore
+  ? (shouldAppendReviewData ? appendMissingById(storedCore.projects, initProjects, [REVIEW_DATA_APPEND_IDS.projectId]) : storedCore.projects)
+  : initProjects;
+const sourceLocations = storedCore
+  ? (shouldAppendReviewData ? appendMissingById(storedCore.locations, initLocations, [REVIEW_DATA_APPEND_IDS.locationId]) : storedCore.locations)
+  : initLocations;
 const sourceOperationLogs = storedCore?.operationLogs || initOperationLogs;
 const normalizedPrd = normalizePrdState({
   devices: sourceDevices,
@@ -99,9 +127,11 @@ const normalizedPrd = normalizePrdState({
   locations: sourceLocations,
   deliveryExceptions: initDeliveryExceptions,
 });
-const storedDelivery = readStoredDelivery();
+const sourceDeliveryPlans = storedDelivery
+  ? (shouldAppendReviewData ? appendMissingById(storedDelivery.plans, initDeliveryPlans, [REVIEW_DATA_APPEND_IDS.deliveryPlanId]) : storedDelivery.plans)
+  : initDeliveryPlans;
 const normalizedDelivery = normalizeDeliveryV2({
-  plans: storedDelivery?.plans || initDeliveryPlans,
+  plans: sourceDeliveryPlans,
   projects: sourceProjects,
   locations: sourceLocations,
   devices: normalizedPrd.devices,
@@ -468,6 +498,15 @@ export function AppProvider({ children }) {
       // Local persistence is best effort in the frontend prototype.
     }
   }, [state.devices, state.projects, state.locations, state.operationLogs]);
+
+  useEffect(() => {
+    if (!shouldAppendReviewData) return;
+    try {
+      window.localStorage.setItem(REVIEW_APPEND_STORAGE_KEY, 'applied');
+    } catch {
+      // The ID-based append remains safe if the marker cannot be persisted.
+    }
+  }, []);
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

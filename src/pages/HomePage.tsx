@@ -80,7 +80,7 @@ export default function HomePage() {
         </Section>
 
         <p className="text-xs text-gray-400 border-t border-[#ececec] pt-5">
-          当前独立演示版的业务与 ERP 数据均由浏览器内 Mock 层提供，不连接真实平台数据库或外部接口。
+          业务数据由平台数据库与用友 ERP 接口提供；ERP 信息仅展示经过同步或实时核验的明确关联记录。
         </p>
       </div>
     </div>

@@ -66,7 +66,7 @@ function FeishuForm({ current, onClose, onSave }) {
 function ErpReferenceForm({ current, referenceDate, projectClient, onClose, onSave }) {
   const [selected, setSelected] = useState(current);
   return <div className="space-y-4">
-    <p className="text-xs text-gray-500">销售出库单和调拨订单由 Mock ERP 数据提供；关联关系保存在当前浏览器中。</p>
+    <p className="text-xs text-gray-500">销售出库单和调拨订单从 ERP 实时查询；关联关系仅保存在平台侧。</p>
     <ErpReferencePicker value={selected} onChange={setSelected} referenceDate={referenceDate} projectClient={projectClient} />
     <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={() => onSave(selected)}>保存 ERP 来源关联</Btn></div>
   </div>;

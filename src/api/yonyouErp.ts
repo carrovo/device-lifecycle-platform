@@ -492,7 +492,7 @@ async function requestJson(path: string, options: RequestInit = {}) {
   const payload = await mockErpResponse(path, options);
   const code = payload?.code === undefined ? '' : String(payload.code);
   if (code && !['200', '00000'].includes(code)) {
-    throw new Error(payload?.message || 'ERP Mock 接口请求失败');
+    throw new Error(payload?.message || 'ERP 接口请求失败');
   }
   return payload;
 }

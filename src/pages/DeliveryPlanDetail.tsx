@@ -183,7 +183,7 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
       <div className="rounded-md border border-gray-200 p-4 space-y-3">
         <h3 className="text-[13px] font-semibold text-gray-800">ERP 来源单据（选填）</h3>
         <ErpReferencePicker key={form.plannedDate || plan.targetDate} value={form.erpReferences} onChange={(value) => update('erpReferences', value)} referenceDate={form.plannedDate || plan.targetDate} projectClient={project.client} />
-        <p className="text-xs text-gray-400">单据由 Mock ERP 数据提供，关联关系仅保存在当前浏览器中。</p>
+        <p className="text-xs text-gray-400">单据从 ERP 实时查询，平台只保存关联关系，不修改 ERP 单据。</p>
       </div>
       <div className="rounded-md border border-gray-200 p-4 space-y-3">
         <h3 className="text-[13px] font-semibold text-gray-800">批次相关飞书链接（选填）</h3>

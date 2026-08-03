@@ -301,21 +301,29 @@ export async function mockApiRequest<T = any>(path: string, options: RequestInit
     saveState(state);
     return copy(created) as T;
   }
-  throw new Error(`Mock API 尚未实现：${method} ${pathname}`);
+  throw new Error(`当前接口尚未实现：${method} ${pathname}`);
 }
 
 const erpFixtures = erpSnapshot.fixtures as Record<string, any[]>;
+const erpDetails = erpSnapshot.details as Record<string, Record<string, any>>;
 
 export async function mockErpResponse(path: string, options: RequestInit = {}) {
   await wait();
   const url = new URL(path, window.location.origin);
   const match = url.pathname.match(/^\/api\/yonyou\/([^/]+)\/(query|detail)$/);
-  if (!match || !erpFixtures[match[1]]) throw new Error(`Mock ERP API 尚未实现：${url.pathname}`);
+  if (!match || !erpFixtures[match[1]]) throw new Error(`当前 ERP 接口尚未实现：${url.pathname}`);
   const records = erpFixtures[match[1]];
   if (match[2] === 'detail') {
     const id = url.searchParams.get('id');
     const code = url.searchParams.get('code');
-    return copy({ code: '200', message: 'success', data: records.find((item) => (!id || item.id === id) && (!code || item.code === code)) || records[0] });
+    const record = records.find((item) => (!id || String(item.id) === id) && (!code || String(item.code) === code))
+      || records.find((item) => code && String(item.code) === code);
+    const detailKey = String(id || record?.id || code || '');
+    return copy({
+      code: '200',
+      message: 'success',
+      data: erpDetails[match[1]]?.[detailKey] || record || records[0],
+    });
   }
   const request = bodyOf(options);
   const query = String(request.code || '').toLowerCase();

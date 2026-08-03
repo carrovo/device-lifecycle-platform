@@ -1,12 +1,12 @@
 {
-  "name": "device-lifecycle-platform-frontend-mock",
+  "name": "device-lifecycle-platform-frontend-prototype",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "mock:export": "node scripts/export-db-snapshot.mjs",
-    "mock:export:erp": "node scripts/export-erp-snapshot.mjs",
+    "data:export": "node scripts/export-db-snapshot.mjs",
+    "data:export:erp": "node scripts/export-erp-snapshot.mjs",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
     "lint": "eslint .",

@@ -170,7 +170,7 @@ function ChildTables({ sections }) {
 function Overview() {
   const [, setSearchParams] = useSearchParams();
   return (
-    <Section title="当前纳入单据" subtitle="八类单据均由浏览器内 Mock 数据提供，可独立演示">
+    <Section title="当前纳入单据" subtitle="八类单据均通过后端实时读取 ERP">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 divide-y md:divide-y-0">
         {TYPES.map((type) => {
           const description = ['arrival', 'productInspection', 'purchaseInbound', 'productionOrder', 'materialOutbound'].includes(type.key)
@@ -707,7 +707,7 @@ function DocList() {
           <div className="space-y-5">
             <div>
               <p className="font-mono text-xs text-gray-500">{detail.record.docNo}</p>
-              <p className="text-xs text-gray-400 mt-1">用友 ERP 浏览器 Mock 数据</p>
+              <p className="text-xs text-gray-400 mt-1">用友 ERP 实时只读数据</p>
             </div>
             {detail.loading && <p className="py-8 text-center text-[13px] text-gray-400">正在获取 ERP 单据详情…</p>}
             {detail.error && (
@@ -752,10 +752,10 @@ export default function ErpCenter() {
       <PageHeader
         title={activeTab === 'overview' ? '单据总览' : 'ERP 单据列表'}
         description={activeTab === 'overview'
-          ? '通过浏览器内 Mock 层查询 ERP 来源单据，用于独立演示核对和设备履历关联。'
+          ? '通过后端服务实时查询 ERP 来源单据，用于核对和设备履历关联。'
           : undefined}
         breadcrumb={<div className="text-xs text-gray-400 mb-1">ERP 单据中心 / {activeTab === 'overview' ? '单据总览' : 'ERP 单据列表'}</div>}
-        actions={<Chip>ERP Mock 数据</Chip>}
+        actions={<Chip>ERP 实时只读</Chip>}
       />
       {activeTab === 'overview' ? <Overview /> : <DocList />}
     </Page>

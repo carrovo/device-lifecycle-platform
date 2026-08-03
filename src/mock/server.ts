@@ -1,4 +1,5 @@
 import { createInitialState, deviceTypes, dictionaries, MOCK_STORAGE_KEY, roles } from './data';
+import erpSnapshot from './erpSnapshot.json';
 
 type MockState = ReturnType<typeof createInitialState>;
 
@@ -30,10 +31,15 @@ function page(items: any[], params: URLSearchParams) {
 const textMatch = (item: any, query: string, fields: string[]) => !query || fields.some((field) => String(item[field] ?? '').toLowerCase().includes(query.toLowerCase()));
 
 function authUser(state: MockState) {
+  const selected = state.users.find((user) => user.role === '管理员' && user.status === '启用')
+    || state.users.find((user) => user.status === '启用')
+    || state.users[0];
+  const role = roles.find((item) => item.role === selected?.role);
   return {
-    ...state.users[0],
-    allowedPaths: ['/home', '/dashboard', '/erp-center', '/production', '/projects', '/assets', '/after-sales', '/system'],
-    projectScope: '全部项目', dataScope: '全部数据',
+    ...selected,
+    allowedPaths: role?.allowedPaths?.length
+      ? role.allowedPaths
+      : ['/home', '/dashboard', '/erp-center', '/production', '/projects', '/assets', '/after-sales', '/system'],
   };
 }
 
@@ -298,16 +304,7 @@ export async function mockApiRequest<T = any>(path: string, options: RequestInit
   throw new Error(`Mock API 尚未实现：${method} ${pathname}`);
 }
 
-const erpFixtures: Record<string, any[]> = {
-  'arrival-orders': [{ id: 'ERP-ARR-001', code: 'DH-202607-018', vouchdate: '2026-07-18', org_name: '深圳制造中心', busType_name: '采购到货', purchaseOrg_name: '采购部', vendor: 'V-001', vendor_name: '精密部件供应商', status: '已审核', arrivalOrders: [{ id: 'ARR-D-1', product_cCode: 'MAT-LIDAR', product_cName: '激光雷达组件', qty: 20, acceptqty: 20, refuseqty: 0, unit_name: '套', oriTaxUnitPrice: 3200, oriSum: 64000, oriTax: 7362 }] }],
-  'inspect-orders': [{ id: 'ERP-QA-001', code: 'LJ-202607-022', inspectDate: '2026-07-20', pk_org_name: '质量中心', trantype_name: '来料检验', verifystate: 10, pk_material_code: 'MAT-LIDAR', pk_material_name: '激光雷达组件', inspectnum: 20, cunitid_name: '套', inspectResult: '合格', qms_qit_incominspectorder_resultList: [{ handleType_name: '接收', nnum: 20 }] }],
-  'purchase-in-records': [{ id: 'ERP-PIN-001', code: 'CGRK-202607-031', vouchdate: '2026-07-22', org_name: '深圳制造中心', bustype_name: '采购入库', vendor: 'V-001', vendor_name: '精密部件供应商', warehouse_name: '原料仓', status: 1, purInRecords: [{ id: 'PIN-D-1', product_cCode: 'MAT-LIDAR', product_cName: '激光雷达组件', batchno: 'LIDAR-0722', qty: 20, stockUnit_name: '套', unit_name: '套', oriTaxUnitPrice: 3200, oriSum: 64000, oriTax: 7362 }] }],
-  'production-orders': [{ id: 'ERP-PO-001', code: 'SC-202607-012', vouchdate: '2026-07-23', orgName: '深圳工厂', transTypeName: '标准生产', departmentName: '整机装配部', status: '已下达', orderProduct: [{ id: 'PO-D-1', lineNo: 1, productCode: 'ROBOT-ALPHA-2', productName: 'AlphaBot 2 智能服务机器人', quantity: 10, mainUnitName: '台', productUnitName: '台', startDate: '2026-07-24', finishDate: '2026-08-02' }] }],
-  'material-outs': [{ id: 'ERP-MO-001', code: 'CLCK-202607-045', vouchdate: '2026-07-24', org_name: '深圳制造中心', bustype_name: '生产领料', department_name: '整机装配部', warehouse: 'WH-RAW', warehouse_name: '原料仓', operator_name: '李明', status: '已审核', materOuts: [{ id: 'MO-D-1', product_cCode: 'MAT-LIDAR', product_cName: '激光雷达组件', batchno: 'LIDAR-0722', qty: 10, stockUnit_name: '套' }] }],
-  'product-in-records': [{ id: 'ERP-IN-001', code: 'CPRK-202607-001', vouchdate: '2026-07-28', org_name: '深圳制造中心', warehouse_name: '深圳成品仓', storeProRecords: [{ id: 'ERP-IN-DETAIL-1', product_cCode: 'ROBOT-ALPHA-2', product_cName: 'AlphaBot 2 智能服务机器人', batchno: 'AlphaBot2-0161', qty: 1, stockUnit_name: '台' }] }],
-  'sales-outs': [{ id: 'ERP-SO-001', code: 'XSCK-202608-001', vouchdate: '2026-08-01', org: 'ORG-SZ', org_name: '深圳库存组织', bustype_name: '销售出库', cust: 'CUST-SH', cust_name: '上海未来科技馆', department_name: '项目交付部', status: '已审核', details: [{ id: 'SO-D-1', product_cCode: 'ROBOT-ALPHA-2', product_cName: 'AlphaBot 2 智能服务机器人', batchno: 'AlphaBot2-0161', qty: 3, stockUnit_name: '台', unitName: '台' }] }],
-  'transfer-orders': [{ id: 'ERP-TR-008', code: 'DBSQ-202608-008', vouchdate: '2026-08-01', outwarehouse: 'WH-FIN', outwarehouse_name: '深圳成品仓', inwarehouse: 'WH-SZ-PARK', inwarehouse_name: '南山园区临时仓', transferApplys: [{ id: 'TR-D-1', product_cCode: 'ROBOT-ALPHA-2', product_cName: 'AlphaBot 2 智能服务机器人', batchno: 'AlphaBot2-0165', qty: 3, stockUnit_name: '台' }] }],
-};
+const erpFixtures = erpSnapshot.fixtures as Record<string, any[]>;
 
 export async function mockErpResponse(path: string, options: RequestInit = {}) {
   await wait();
@@ -322,8 +319,21 @@ export async function mockErpResponse(path: string, options: RequestInit = {}) {
   }
   const request = bodyOf(options);
   const query = String(request.code || '').toLowerCase();
-  const filtered = records.filter((item) => !query || item.code.toLowerCase().includes(query));
-  return copy({ code: '200', message: 'success', data: { recordList: filtered, recordCount: filtered.length, pageCount: 1 } });
+  const filtered = records.filter((item) => !query || String(item.code || '').toLowerCase().includes(query));
+  const size = Math.max(1, Number(request.pageSize) || erpSnapshot.pageSize);
+  const requestedPage = match[1] === 'inspect-orders'
+    ? Math.max(1, (Number(request.pageIndex) || 0) + 1)
+    : Math.max(1, Number(request.pageIndex) || 1);
+  const start = (requestedPage - 1) * size;
+  return copy({
+    code: '200',
+    message: 'success',
+    data: {
+      recordList: filtered.slice(start, start + size),
+      recordCount: filtered.length,
+      pageCount: Math.max(1, Math.ceil(filtered.length / size)),
+    },
+  });
 }
 
 export function resetMockData() {

@@ -8,6 +8,7 @@
 - 所有原后端接口均由浏览器内 Mock API 接管
 - 覆盖认证、设备、生产、项目、点位、交付、系统管理和 8 类 ERP 单据
 - 查询、详情、分页及常用新增/编辑/删除操作可演示
+- 初始 Mock 数据来自现有 MySQL 数据库和现有 ERP 接口快照，不包含虚构业务记录
 - 修改后的演示数据持久化在浏览器 `localStorage` 中
 - 已包含 Vercel SPA 路由重写配置
 
@@ -47,4 +48,20 @@ npm run build
 
 ## Mock 数据说明
 
-Mock 初始数据定义在 `src/mock/data.ts`，接口路由与读写逻辑位于 `src/mock/server.ts`。演示过程中的写操作只影响当前浏览器的本地存储，不会访问网络或修改真实业务数据。清除站点的 Local Storage 后即可恢复初始数据。
+业务初始数据保存在 `src/mock/dbSnapshot.json`，由现有 MySQL 数据库于 **2026-08-03** 导出；`src/mock/data.ts` 只负责把数据库字段转换成前端现有的数据结构。导出时明确排除了密码哈希、邮箱、手机号、员工号、第三方身份标识和应用密钥。
+
+8 类 ERP 单据保存在 `src/mock/erpSnapshot.json`，由现有后端代理真实 ERP 接口于 **2026-08-03** 抓取。每类单据只抓取前 **2 页**，每页请求 10 条；不足两页或重复记录不会使用占位数据补齐。
+
+接口路由与浏览器内读写逻辑位于 `src/mock/server.ts`。演示过程中的写操作只影响当前浏览器的本地存储，不会访问网络、数据库或修改真实业务数据。清除站点的 Local Storage 后即可恢复到上述快照。
+
+如需在有权限的内部环境重新生成快照，可运行：
+
+```bash
+# 使用 DB_HOST、DB_PORT、DB_USERNAME、DB_PASSWORD（按需设置）
+npm run mock:export
+
+# 需先启动原后端，并设置其 JWT_SECRET
+BACKEND_URL=http://127.0.0.1:18088 JWT_SECRET=*** npm run mock:export:erp
+```
+
+快照含真实业务数据。部署公开站点前，请由数据负责人确认公开范围。

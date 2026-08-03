@@ -1,7 +1,7 @@
 // Snapshot rows are intentionally schema-driven and transformed dynamically.
 import snapshot from './dbSnapshot.json';
 
-export const MOCK_STORAGE_KEY = `device-lifecycle-db-snapshot-v${snapshot.snapshotVersion}`;
+export const MOCK_STORAGE_KEY = `device-lifecycle-db-snapshot-v${snapshot.snapshotVersion}-transform-v2`;
 export const MOCK_EXPORTED_AT = snapshot.exportedAt;
 
 type Row = Record<string, any>;
@@ -9,7 +9,11 @@ type Row = Record<string, any>;
 const camelKey = (key: string) => key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 const camelRow = (row: Row): Row => Object.fromEntries(Object.entries(row).map(([key, value]) => [camelKey(key), value]));
 const table = (name: keyof typeof snapshot.tables): Row[] => (snapshot.tables[name] as Row[]).map(camelRow);
-const bool = (value: unknown) => value === true || value === 1 || value === '1';
+const bool = (value: unknown) => value === true
+  || value === 1
+  || value === '1'
+  // MySQL JSON_OBJECT serializes BIT(1) values through the CLI as binary data.
+  || (typeof value === 'string' && /^base64:type16:AQ==$/.test(value));
 const parseList = (value: unknown): string[] => {
   if (Array.isArray(value)) return value.map(String);
   if (!value) return [];

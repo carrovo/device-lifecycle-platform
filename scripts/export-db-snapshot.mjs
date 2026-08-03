@@ -30,6 +30,14 @@ const tables = {
   sys_user: ['id', 'avatar', 'data_scope', 'dept', 'last_login', 'name', 'project_scope', 'role', 'status', 'title', 'username'],
 };
 
+const bitColumns = new Set([
+  'production_device.production_complete',
+  'project_center_location.disabled',
+  'sys_production_node.enabled',
+  'sys_project_type.enabled',
+  'sys_role.enabled',
+]);
+
 const mysqlArgs = [
   '--protocol=TCP',
   `--host=${process.env.DB_HOST || '127.0.0.1'}`,
@@ -46,7 +54,12 @@ function query(sql) {
 
 const snapshot = { snapshotVersion: 1, exportedAt: new Date().toISOString(), tables: {} };
 for (const [table, columns] of Object.entries(tables)) {
-  const pairs = columns.flatMap((column) => [`'${column}'`, `\`${column}\``]).join(', ');
+  const pairs = columns.flatMap((column) => {
+    const value = bitColumns.has(`${table}.${column}`)
+      ? `CAST(\`${column}\` AS UNSIGNED)`
+      : `\`${column}\``;
+    return [`'${column}'`, value];
+  }).join(', ');
   const order = columns.slice(0, 2).map((column) => `\`${column}\``).join(', ');
   const output = query(`SELECT JSON_OBJECT(${pairs}) FROM \`${table}\` ORDER BY ${order}`);
   snapshot.tables[table] = output ? output.split('\n').map((line) => JSON.parse(line)) : [];

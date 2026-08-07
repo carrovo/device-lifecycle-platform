@@ -8,7 +8,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState('');
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('demo123');
+  const [password, setPassword] = useState('');
 
   if (isAuthenticated) return <Navigate to={defaultPath} replace />;
 
@@ -65,7 +65,7 @@ export default function Login() {
           <p className="text-sm text-gray-500">欢迎回来</p>
           <h2 className="text-3xl font-semibold text-gray-900 mt-2">登录管理平台</h2>
           <p className="text-sm text-gray-500 mt-3 mb-7">使用平台账号或企业飞书登录</p>
-          <p className="mb-7 mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">演示账号已预填，点击登录即可；也可输入任意非空账号与密码。</p>
+          <p className="mb-7 mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">请输入账号和密码后登录。</p>
 
           <form onSubmit={loginWithAccount} className="space-y-4">
             <div>

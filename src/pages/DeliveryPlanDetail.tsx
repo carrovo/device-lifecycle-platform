@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import Modal from '../components/Modal';
 import StatusBadge from '../components/StatusBadge';
@@ -13,6 +13,9 @@ import { deliveryRelationErpReference, erpReferenceUrl } from '../data/erpLinks'
 import {
   batchDisplayName, batchMetrics, deliveryMetrics, deliveryRelations,
 } from '../data/deliveryV2';
+import { deliverySubOrdersForPlan, sceneConfigForProject } from '../data/deliverySubOrders';
+import DeliverySubOrderList from '../components/deliverySubOrders/DeliverySubOrderList';
+import DeliverySubOrderCreateModal from '../components/deliverySubOrders/DeliverySubOrderCreateModal';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, Input, Select, LinkAction,
   StatGrid, StatCard, Toolbar, SearchInput, EmptyState, CompactProgress,
@@ -21,6 +24,7 @@ import {
 const TABS = [
   ['overview', '执行概览'],
   ['batches', '交付批次'],
+  ['sub-orders', '交付子工单'],
   ['devices', '关联设备'],
   ['exceptions', '交付异常'],
   ['logs', '操作日志'],
@@ -198,6 +202,7 @@ function NewBatchForm({ plan, project, state, onClose, onSave }) {
 
 export default function DeliveryPlanDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { state, dispatch } = useApp();
   const requested = searchParams.get('tab');
@@ -212,6 +217,8 @@ export default function DeliveryPlanDetail() {
   const planDeviceReturn = `/delivery-plans/${plan.id}?tab=devices&returnTo=${encodeURIComponent(returnTo)}`;
   const metrics = deliveryMetrics(plan);
   const relations = deliveryRelations(plan);
+  const subOrders = deliverySubOrdersForPlan(state.deliverySubOrders, plan.id);
+  const scene = sceneConfigForProject(project?.projectType);
   const exceptions = state.deliveryExceptions.filter((item) => item.deliveryPlanId === plan.id);
   const setActive = (tab) => {
     setActiveState(tab);
@@ -339,6 +346,12 @@ export default function DeliveryPlanDetail() {
         </Table>
       </Section>}
 
+      {active === 'sub-orders' && <>
+        <Section title={`${project?.projectType || '当前项目'}交付流程`} subtitle="场景差异来自项目类型，状态和执行项由系统集中管理。"><p className="text-[13px] text-gray-700">{scene.description}</p><div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500">{scene.requiresPreparation && <><span className="rounded-md border border-gray-200 px-2 py-1">舱体进场及水电部署</span><span>→</span></>}<span className="rounded-md border border-gray-200 px-2 py-1">机器人／设备部署</span><span>→</span><span className="rounded-md border border-gray-200 px-2 py-1">设备验收</span></div></Section>
+        {!subOrders.length && <Section title="开始现场交付任务" subtitle="当前交付执行尚无子工单。"><div className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-[13px] text-gray-700">建议先创建“{scene.requiresPreparation ? '舱体进场及水电部署' : '机器人／设备部署'}”子工单。</p><p className="text-xs text-gray-400 mt-1">{scene.description}</p></div><Btn variant="primary" onClick={() => setModal({ type: 'create-sub-order' })}>开始现场交付任务</Btn></div></Section>}
+        <Section title="交付子工单" right={subOrders.length ? <Btn size="sm" variant="primary" onClick={() => setModal({ type: 'create-sub-order' })}>新建子工单</Btn> : undefined} bodyClassName="p-4"><DeliverySubOrderList subOrders={subOrders} plan={plan} state={state} returnTo={`/delivery-plans/${plan.id}?tab=sub-orders&returnTo=${encodeURIComponent(returnTo)}`} /></Section>
+      </>}
+
       {active === 'devices' && <>
         <Toolbar right={<span className="text-xs text-gray-400">共 {filteredRelations.length} 台设备</span>}>
           <Select value={deviceFilters.batchId} onChange={(event) => setDeviceFilters((prev) => ({ ...prev, batchId: event.target.value }))}><option value="">全部批次</option>{plan.batches.map((item) => <option key={item.id} value={item.id}>{batchDisplayName(item)}</option>)}</Select>
@@ -378,7 +391,7 @@ export default function DeliveryPlanDetail() {
                 return device ? <Link key={device.id} className="ui-link mr-2" to={`/devices/${device.id}?tab=project&returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions&returnTo=${encodeURIComponent(returnTo)}`)}`}>{device.sn}</Link> : null;
               }) : '批次级'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.description}</td>
               <td className="px-3 py-2 text-gray-600">{item.recorder || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime || '—'}</td>
-              <td className="px-3 py-2">{batch && <LinkAction to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions&returnTo=${encodeURIComponent(returnTo)}`)}#exceptions`}>查看详情</LinkAction>}</td>
+              <td className="px-3 py-2">{item.subOrderId ? <LinkAction to={`/delivery-plans/${plan.id}/sub-orders/${item.subOrderId}?tab=exceptions&returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions`)}`}>查看子工单</LinkAction> : batch && <LinkAction to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=exceptions&returnTo=${encodeURIComponent(returnTo)}`)}#exceptions`}>查看详情</LinkAction>}</td>
             </tr>;
           })}
         </Table>
@@ -392,6 +405,7 @@ export default function DeliveryPlanDetail() {
 
       <Modal size="xl" isOpen={modal?.type === 'edit'} onClose={() => setModal(null)} title="编辑交付执行基础信息"><EditPlanForm plan={plan} state={state} included={metrics.included} onClose={() => setModal(null)} onSave={saveBasic} /></Modal>
       <Modal size="2xl" isOpen={modal?.type === 'batch'} onClose={() => setModal(null)} title="新增交付批次"><NewBatchForm plan={plan} project={project} state={state} onClose={() => setModal(null)} onSave={saveBatch} /></Modal>
+      <DeliverySubOrderCreateModal key={`create-${modal?.type}`} isOpen={modal?.type === 'create-sub-order'} onClose={() => setModal(null)} onViewBatches={() => { setModal(null); setActive('batches'); }} onCreate={(created) => { setModal(null); dispatch({ type: 'ADD_DELIVERY_SUB_ORDER', payload: created }); navigate(`/delivery-plans/${plan.id}/sub-orders/${created.id}?returnTo=${encodeURIComponent(`/delivery-plans/${plan.id}?tab=sub-orders`)}&created=1`); }} plan={plan} project={project} state={state} />
     </Page>
   );
 }

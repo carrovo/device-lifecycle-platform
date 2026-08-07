@@ -11,9 +11,12 @@ import ProjectsCenter from './pages/ProjectsCenter';
 import ProjectDetail from './pages/ProjectDetail';
 import DeliveryPlanDetail from './pages/DeliveryPlanDetail';
 import DeliveryBatchDetail from './pages/DeliveryBatchDetail';
+import DeliverySubOrderDetail from './pages/DeliverySubOrderDetail';
 import AssetsPage from './pages/AssetsPage';
 import DeviceDetail from './pages/DeviceDetail';
 import PlanningPlaceholder from './pages/PlanningPlaceholder';
+import AfterSalesIssues from './pages/AfterSalesIssues';
+import AfterSalesOrderDetail from './pages/AfterSalesOrderDetail';
 import SystemPage from './pages/SystemPage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 import { useRole } from './context/RoleContext';
@@ -54,9 +57,11 @@ function AppRoutes() {
         <Route path="/projects/:id" element={<ProtectedPage><ProjectDetail /></ProtectedPage>} />
         <Route path="/delivery-plans/:id" element={<ProtectedPage><DeliveryPlanDetail /></ProtectedPage>} />
         <Route path="/delivery-plans/:planId/batches/:batchId" element={<ProtectedPage><DeliveryBatchDetail /></ProtectedPage>} />
+        <Route path="/delivery-plans/:planId/sub-orders/:subOrderId" element={<ProtectedPage><DeliverySubOrderDetail /></ProtectedPage>} />
         <Route path="/assets" element={<ProtectedPage><AssetsPage /></ProtectedPage>} />
         <Route path="/devices/:id" element={<ProtectedPage><DeviceDetail /></ProtectedPage>} />
-        <Route path="/after-sales" element={<ProtectedPage><PlanningPlaceholder type="afterSales" /></ProtectedPage>} />
+        <Route path="/after-sales" element={<ProtectedPage><AfterSalesIssues /></ProtectedPage>} />
+        <Route path="/after-sales/orders/:orderId" element={<ProtectedPage><AfterSalesOrderDetail /></ProtectedPage>} />
         <Route path="/system" element={<ProtectedPage><SystemPage /></ProtectedPage>} />
         <Route path="*" element={<Navigate to={defaultPath} replace />} />
        </Routes>

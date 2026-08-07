@@ -5,7 +5,7 @@ import {
   productionLabel, productionProgressLabel, productionTimeline,
 } from '../data/prdV12';
 import { batchDisplayName, relationForDevice } from '../data/deliveryV2';
-import { deliveryRelationErpReference, erpReferenceUrl } from '../data/erpLinks';
+import { deviceExecutionSummary } from '../data/deliveryLifecycle';
 import {
   Page, PageHeader, Section, DescList, Table, Btn, LinkAction, EmptyState,
 } from '../components/ui';
@@ -52,6 +52,7 @@ export default function DeviceDetail() {
   const deliveries = deliveryEntries.map((item) => item.plan);
   const deliveryIds = new Set(deliveries.map((item) => item.id));
   const exceptions = state.deliveryExceptions.filter((item) => deliveryIds.has(item.deliveryPlanId) && (item.affectedDeviceIds || []).includes(device.id));
+  const execution = deviceExecutionSummary(state, device.id);
   const logs = state.operationLogs.filter((item) => item.deviceId === device.id)
     .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
   const actions = <>
@@ -117,51 +118,56 @@ export default function DeviceDetail() {
             ['项目详情', <Link className="ui-link" to={`/projects/${project.id}`}>查看项目详情</Link>],
           ]} /> : <p className="text-[13px] text-gray-500">当前设备尚未绑定项目和点位。</p>}
         </Section>
-        <Section title="交付执行" bodyClassName="p-0">
-          {deliveryEntries.length ? <Table head={['交付执行编号', '所属批次', '项目', '目标 / 实际点位', 'ERP 发货 / 调拨来源', '当前交付结果', '结果时间', '异常记录', '操作']}>
+        <Section title="交付记录" bodyClassName="p-0">
+          {deliveryEntries.length ? <Table head={['交付执行编号', '所属批次', '项目', '目标 / 实际点位', '当前交付结果', '部署任务', '最近安装调试', '最近验收', '操作']}>
             {deliveryEntries.map(({ plan, relation }) => {
               const batch = relation.batch;
-              const erpReference = deliveryRelationErpReference(relation);
-              const exceptionCount = exceptions.filter((item) => item.deliveryPlanId === plan.id).length;
+              const orderLinks = execution.orders.filter((order) => order.deliveryPlanId === plan.id);
               return <tr key={plan.id} className="hover:bg-[#fafafa]">
                 <td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{plan.id}</Link></td>
                 <td className="px-3 py-2"><Link className="ui-link" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{batchDisplayName(batch)}</Link></td>
                 <td className="px-3 py-2 text-gray-600">{state.projects.find((item) => item.id === plan.projectId) ? <Link className="ui-link" to={`/projects/${plan.projectId}?tab=delivery`}>{state.projects.find((item) => item.id === plan.projectId)?.name}</Link> : '—'}</td>
                 <td className="px-3 py-2 text-gray-600">{state.locations.find((item) => item.id === relation.targetLocationId)?.name || '—'} / {state.locations.find((item) => item.id === relation.actualLocationId)?.name || '—'}</td>
-                <td className="px-3 py-2 text-xs text-gray-500">{erpReference ? <Link className="ui-link" to={erpReferenceUrl(erpReference, `/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}>{erpReference.no}</Link> : '—'}</td>
                 <td className="px-3 py-2"><StatusBadge status={relation.result} /></td>
-                <td className="px-3 py-2 text-xs text-gray-500">{relation.recordTime || '—'}</td>
-                <td className="px-3 py-2">{exceptionCount ? <a className="ui-link" href="#device-delivery-exceptions">{exceptionCount} 条</a> : <span className="text-gray-400">暂无</span>}</td>
+                <td className="px-3 py-2 text-xs text-gray-600">{orderLinks.length ? orderLinks.map((order) => <Link key={order.id} className="ui-link block whitespace-nowrap" to={`/delivery-plans/${order.deliveryPlanId}/sub-orders/${order.id}?tab=devices`}>机器人／设备部署 · {state.locations.find((item) => item.id === order.locationId)?.name || '当前点位'}</Link>) : '—'}</td>
+                <td className="px-3 py-2 text-xs text-gray-600">{execution.latest?.installationStatus || '—'}</td>
+                <td className="px-3 py-2 text-xs text-gray-600">{execution.latest?.acceptanceResult || '未记录'}</td>
                 <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-3"><LinkAction to={`/delivery-plans/${plan.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看执行详情</LinkAction><LinkAction to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看批次详情</LinkAction></div></td>
               </tr>;
             })}
           </Table> : <EmptyState className="py-8">当前设备暂无交付执行。</EmptyState>}
         </Section>
-        {deliveryEntries.length > 0 && <Section title="交付现场记录与批次资料">
+        <Section title="问题记录" bodyClassName="p-0">
+          <Table head={['问题编号', '故障现象描述', '解决状态', '问题是否闭环', '提报时间', '操作']} empty="暂无关联正式问题">
+            {execution.issues.map((issue) => <tr key={issue.id} className="hover:bg-[#fafafa]"><td className="px-3 py-2 font-mono text-xs"><Link className="ui-link" to={`/after-sales?issue=${issue.id}`}>{issue.issueNo}</Link></td><td className="px-3 py-2 text-xs text-gray-600">{issue.symptom || '—'}</td><td className="px-3 py-2"><StatusBadge status={issue.resolutionStatus || '—'} /></td><td className="px-3 py-2"><StatusBadge status={issue.isClosed || '—'} /></td><td className="px-3 py-2 text-xs text-gray-500">{issue.reportedAt || '—'}</td><td className="px-3 py-2 whitespace-nowrap"><LinkAction to={`/after-sales?issue=${issue.id}`}>查看问题</LinkAction></td></tr>)}
+          </Table>
+        </Section>
+        <Section title="售后记录" bodyClassName="p-0">
+          <Table head={['售后工单', '来源问题', '当前状态', '售后工程师', '预计 / 实际上门', '关单时间', '操作']} empty="暂无关联售后工单">
+            {execution.afterSales.map((order) => <tr key={order.id} className="hover:bg-[#fafafa]"><td className="px-3 py-2 font-mono text-xs"><Link className="ui-link" to={`/after-sales/orders/${order.id}`}>{order.orderNo}</Link></td><td className="px-3 py-2 font-mono text-xs">{order.issueNo}</td><td className="px-3 py-2"><StatusBadge status={order.status} /></td><td className="px-3 py-2">{order.engineer || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{order.plannedVisitAt || '—'} / {order.actualVisitAt || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{order.closedAt || '—'}</td><td className="px-3 py-2 whitespace-nowrap"><LinkAction to={`/after-sales/orders/${order.id}`}>查看工单</LinkAction></td></tr>)}
+          </Table>
+        </Section>
+        {deliveryEntries.some(({ relation }) => (relation.batch.siteRecords || []).some((record) => (record.deviceIds || []).includes(device.id))) && <Section title="历史现场记录">
           <div className="space-y-5">
             {deliveryEntries.map(({ plan, relation }) => {
               const batch = relation.batch;
               const records = (batch.siteRecords || []).filter((item) => (item.deviceIds || []).includes(device.id));
               return <div key={`${plan.id}-${batch.id}`} className="border-b border-gray-100 last:border-b-0 pb-4 last:pb-0">
                 <div className="flex items-center justify-between gap-3"><Link className="ui-link text-[13px] font-medium" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>{batchDisplayName(batch)}</Link><Link className="ui-link text-[13px]" to={`/delivery-plans/${plan.id}/batches/${batch.id}?returnTo=${encodeURIComponent(`/devices/${device.id}?tab=project${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`)}`}>查看详情</Link></div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-500">
-                  {(batch.feishuLinks || []).map((item) => <a key={item.id} className="ui-link" href={item.url} target="_blank" rel="noreferrer">打开表格</a>)}
-                  {!batch.feishuLinks?.length && <span>暂无批次飞书链接</span>}
-                </div>
-                {records.length ? <div className="mt-2 space-y-1">{[...records].sort((a, b) => (b.time || '').localeCompare(a.time || '')).map((record) => <p key={record.id} className="text-xs text-gray-600">{record.time} · {record.content}{record.hasException ? ` · 异常：${record.exceptionDescription}` : ''}</p>)}</div> : <p className="text-xs text-gray-400 mt-2">暂无与当前设备明确关联的现场记录。</p>}
+                {records.length ? <div className="mt-2 space-y-1">{[...records].sort((a, b) => (b.time || '').localeCompare(a.time || '')).map((record) => <p key={record.id} className="text-xs text-gray-600">{record.time} · {record.content}{record.hasException ? ` · 异常：${record.exceptionDescription}` : ''}</p>)}</div> : null}
               </div>;
             })}
           </div>
         </Section>}
-        <Section id="device-delivery-exceptions" title="交付异常" bodyClassName="p-0">
+        {exceptions.length > 0 && <Section id="device-delivery-exceptions" title="历史交付异常" bodyClassName="p-0">
           {exceptions.length ? <Table head={['关联交付执行', '来源记录标题', '异常来源类型', '异常说明', '记录人', '记录时间', '操作']}>
             {exceptions.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]">
               <td className="px-3 py-2 font-mono text-xs">{item.deliveryPlanId}</td><td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle || '交付记录'}</td><td className="px-3 py-2 text-gray-600">{item.sourceType || '—'}</td>
               <td className="px-3 py-2 text-xs text-gray-600">{item.description}</td><td className="px-3 py-2 text-gray-600">{item.recorder || '—'}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime || '—'}</td>
               <td className="px-3 py-2"><LinkAction to={`/delivery-plans/${item.deliveryPlanId}`}>查看交付执行详情</LinkAction></td>
             </tr>)}
-          </Table> : <EmptyState className="py-8">暂无交付异常。</EmptyState>}
-        </Section>
+          </Table> : null}
+        </Section>}
       </>}
 
       {active === 'logs' && <Section title="操作日志" bodyClassName="p-0">

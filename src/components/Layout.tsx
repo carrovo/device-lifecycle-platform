@@ -56,7 +56,8 @@ const NAV_ITEMS = [
   {
     label: '售后管理', base: '/after-sales', icon: 'aftersales',
     children: [
-      { label: '后续规划', to: '/after-sales', tab: null },
+      { label: '问题池', to: '/after-sales', tab: null },
+      { label: '售后工单', to: '/after-sales?tab=orders', tab: 'orders' },
     ],
   },
   {

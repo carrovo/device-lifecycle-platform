@@ -5,6 +5,11 @@ import { useRole } from './RoleContext';
 import { createOperationLog, getOperationLogs } from '../api/system';
 import { getBusinessDictionaries } from '../api/dictionaries';
 import { configureProductionSteps } from '../data/prdV12';
+import { createDeliverySubOrderSeeds } from '../data/deliverySubOrders';
+import { createIssuePoolSeeds } from '../data/issuePool';
+import { createAfterSalesOrderSeeds, type AfterSalesOrder } from '../data/afterSalesOrders';
+import { createClientId } from '../data/clientId';
+import { nowText } from '../data/dateTime';
 import {
   createProductionDevice,
   deleteProductionDevice,
@@ -195,6 +200,9 @@ const initialState = {
   deliveryPlans: [],
   locations: [],
   deliveryExceptions: [],
+  deliverySubOrders: createDeliverySubOrderSeeds(),
+  issueRecords: createIssuePoolSeeds(),
+  afterSalesOrders: createAfterSalesOrderSeeds() as AfterSalesOrder[],
   users: [],
   currentUser: '',
   currentUserId: '',
@@ -353,6 +361,42 @@ function appReducer(state, action) {
         ),
       };
 
+    case 'ADD_DELIVERY_SUB_ORDER':
+      return { ...state, deliverySubOrders: [...state.deliverySubOrders, action.payload] };
+
+    case 'UPDATE_DELIVERY_SUB_ORDER':
+      return {
+        ...state,
+        deliverySubOrders: state.deliverySubOrders.map((item) =>
+          item.id === action.payload.id ? action.payload : item
+        ),
+      };
+
+    case 'ADD_ISSUE_RECORD':
+      return { ...state, issueRecords: [...state.issueRecords, action.payload] };
+
+    case 'UPDATE_ISSUE_RECORD':
+      {
+        const previous = state.issueRecords.find((item) => item.id === action.payload.id);
+        const issueJustClosed = previous?.isClosed !== '是' && action.payload.isClosed === '是';
+        const closedAt = issueJustClosed ? nowText() : '';
+        return {
+          ...state,
+          issueRecords: state.issueRecords.map((item) => item.id === action.payload.id ? { ...item, ...action.payload } : item),
+          deliverySubOrders: issueJustClosed ? state.deliverySubOrders.map((order) => (order.issueLinks || []).some((link) => link.issueId === action.payload.id) ? {
+            ...order,
+            updatedAt: closedAt,
+            logs: [...(order.logs || []), { id: createClientId('DSOLOG'), operator: state.currentUser || '当前用户', time: closedAt, action: '问题已闭环', notes: `${action.payload.issueNo} 问题是否闭环：否 → 是` }],
+          } : order) : state.deliverySubOrders,
+        };
+      }
+
+    case 'ADD_AFTER_SALES_ORDER':
+      return { ...state, afterSalesOrders: [...state.afterSalesOrders, action.payload] };
+
+    case 'UPDATE_AFTER_SALES_ORDER':
+      return { ...state, afterSalesOrders: state.afterSalesOrders.map((item) => item.id === action.payload.id ? action.payload : item) };
+
     case 'ADD_LOCATION':
       return { ...state, locations: [...state.locations, action.payload] };
 
@@ -495,7 +539,7 @@ export function AppProvider({ children }) {
     const deviceNeedsProject = /^\/devices\/[^/]+$/.test(location.pathname)
       && ['project', 'logs'].includes(deviceTab);
     const projectMatch = location.pathname.match(/^\/projects\/([^/]+)$/);
-    const deliveryMatch = location.pathname.match(/^\/delivery-plans\/([^/]+)(?:\/batches\/([^/]+))?$/);
+    const deliveryMatch = location.pathname.match(/^\/delivery-plans\/([^/]+)(?:(?:\/batches\/([^/]+))|(?:\/sub-orders\/([^/]+)))?$/);
     const device = deviceNeedsProject
       ? state.devices.find((item) => item.id === decodeURIComponent(location.pathname.split('/')[2]) || item.sn === decodeURIComponent(location.pathname.split('/')[2]))
       : null;

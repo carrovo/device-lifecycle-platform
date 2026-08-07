@@ -72,28 +72,6 @@ function ErpReferenceForm({ current, referenceDate, projectClient, onClose, onSa
   </div>;
 }
 
-function SiteRecordForm({ devices, onClose, onSave }) {
-  const [form, setForm] = useState({ content: '', deviceIds: [], hasException: false, exceptionDescription: '', documentUrl: '' });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const toggle = (id) => setForm((prev) => ({ ...prev, deviceIds: prev.deviceIds.includes(id) ? prev.deviceIds.filter((item) => item !== id) : [...prev.deviceIds, id] }));
-  const submit = () => {
-    const next: Record<string, string> = {};
-    if (!form.content.trim()) next.content = '请填写现场记录内容。';
-    if (form.hasException && !form.exceptionDescription.trim()) next.exceptionDescription = '存在异常时必须填写异常说明。';
-    if (form.documentUrl && !/^https?:\/\/\S+$/i.test(form.documentUrl)) next.documentUrl = '请输入有效链接。';
-    if (Object.keys(next).length) return setErrors(next);
-    onSave(form);
-  };
-  return <div className="space-y-4">
-    <div><label className="block text-xs text-gray-600 mb-1">记录内容 <span className="text-red-500">*</span></label><textarea className="ui-input w-full min-h-24" value={form.content} onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))} />{errors.content && <p className="text-xs text-red-600 mt-1">{errors.content}</p>}</div>
-    <div><label className="block text-xs text-gray-600 mb-2">关联设备（选填）</label><div className="max-h-44 overflow-y-auto rounded-md border border-gray-200 divide-y divide-gray-100">{devices.map((device) => <label key={device.id} className="flex items-center gap-3 px-3 py-2 text-xs"><input type="checkbox" checked={form.deviceIds.includes(device.id)} onChange={() => toggle(device.id)} /><span className="font-mono">{device.sn}</span><span className="text-gray-400">{device.robotNo}</span></label>)}</div><p className="text-xs text-gray-400 mt-1">未选择设备时，该记录属于整个批次。</p></div>
-    <label className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-[13px]"><input type="checkbox" checked={form.hasException} onChange={(event) => setForm((prev) => ({ ...prev, hasException: event.target.checked }))} />存在异常</label>
-    {form.hasException && <div><label className="block text-xs text-gray-600 mb-1">异常说明 <span className="text-red-500">*</span></label><textarea className="ui-input w-full min-h-20" value={form.exceptionDescription} onChange={(event) => setForm((prev) => ({ ...prev, exceptionDescription: event.target.value }))} />{errors.exceptionDescription && <p className="text-xs text-red-600 mt-1">{errors.exceptionDescription}</p>}</div>}
-    <div><label className="block text-xs text-gray-600 mb-1">相关资料链接</label><Input className="w-full" value={form.documentUrl} onChange={(event) => setForm((prev) => ({ ...prev, documentUrl: event.target.value }))} />{errors.documentUrl && <p className="text-xs text-red-600 mt-1">{errors.documentUrl}</p>}</div>
-    <div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" onClick={submit}>添加现场记录</Btn></div>
-  </div>;
-}
-
 function DeviceResultForm({ batch, relations, devices, locations, onClose, onSave }) {
   const existing = relations.filter((item) => item.result !== '未确认');
   const inheritedLocations = [...new Set(relations.map((item) => item.actualLocationId || item.targetLocationId).filter(Boolean))];
@@ -206,12 +184,6 @@ export default function DeliveryBatchDetail() {
   const saveErpReferences = (references) => {
     updateBatch({ ...batch, erpReferences: references }, '调整 ERP 来源关联', `关联 ${references.length} 张销售出库或调拨单据`);
   };
-  const saveSiteRecord = (form) => {
-    const time = nowText();
-    const record = { id: createClientId('SITE'), content: form.content.trim(), deviceIds: form.deviceIds, hasException: form.hasException, exceptionDescription: form.hasException ? form.exceptionDescription.trim() : '', documentUrl: form.documentUrl.trim(), recorder: state.currentUser, time };
-    if (record.hasException) dispatch({ type: 'ADD_DELIVERY_EXCEPTION', payload: { id: `DEX-${record.id}`, deliveryPlanId: plan.id, batchId: batch.id, projectId: plan.projectId, sourceRecordId: record.id, sourceTitle: record.content.slice(0, 30), sourceType: '现场记录', affectedDeviceIds: record.deviceIds, description: record.exceptionDescription, recorder: state.currentUser, recordTime: time } });
-    updateBatch({ ...batch, siteRecords: [...siteRecords, record] }, '添加现场记录', record.content.slice(0, 40));
-  };
   const saveResults = (form) => {
     const time = nowText();
     const selectedIds = new Set(modalRelations.map((item) => item.deviceId));
@@ -262,7 +234,6 @@ export default function DeliveryBatchDetail() {
         ['设备结果汇总', metrics.summary], ['通过 / 未通过 / 未确认', `${metrics.passed} / ${metrics.failed} / ${metrics.unconfirmed}`], ['最近更新时间', batch.updatedAt || '—'], ['备注', batch.notes || '—'],
       ]} />
     </Section>
-
     <Section title="关联记录">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
@@ -306,20 +277,20 @@ export default function DeliveryBatchDetail() {
       </Table>
     </Section>}
 
-    <Section id="site-records" title="现场交付与结果" right={<Btn size="sm" variant="primary" onClick={() => setModal({ type: 'site' })}>添加现场记录</Btn>} bodyClassName="p-0">
+    {siteRecords.length > 0 && <Section id="site-records" title="历史现场记录" bodyClassName="p-0">
       <Table head={['记录内容', '关联范围', '关联设备', '异常信息', '资料', '记录人', '记录时间']} empty="暂无现场记录">
         {siteRecords.map((record) => { const recordDeviceIds = record.deviceIds || []; return <tr key={record.id} className="hover:bg-[#fafafa]"><td className="px-3 py-2 text-gray-700">{record.content}</td><td className="px-3 py-2 text-gray-600">{recordDeviceIds.length ? '具体设备' : '整个批次'}</td><td className="px-3 py-2 font-mono text-xs">{recordDeviceIds.map((id) => state.devices.find((item) => item.id === id)?.sn).filter(Boolean).join('、') || '—'}</td><td className="px-3 py-2 text-xs">{record.hasException ? <span className="text-red-600">{record.exceptionDescription}</span> : <span className="text-gray-400">暂无</span>}</td><td className="px-3 py-2">{record.documentUrl ? <a className="ui-link" href={record.documentUrl} target="_blank" rel="noreferrer">打开资料</a> : '—'}</td><td className="px-3 py-2">{record.recorder}</td><td className="px-3 py-2 text-xs text-gray-500">{record.time}</td></tr>; })}
       </Table>
-    </Section>
+    </Section>}
 
-    <Section id="exceptions" title={`批次异常（${exceptions.length}）`} bodyClassName="p-0">
+    {exceptions.length > 0 && <Section id="exceptions" title="历史交付异常" bodyClassName="p-0">
       <Table head={['来源记录', '来源类型', '关联设备', '异常说明', '记录人', '记录时间', '操作']} empty="暂无批次异常">
         {exceptions.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]"><td className="px-3 py-2 font-medium text-gray-700">{item.sourceTitle}</td><td className="px-3 py-2">{item.sourceType}</td><td className="px-3 py-2 font-mono text-xs">{(item.affectedDeviceIds || []).length ? (item.affectedDeviceIds || []).map((id) => {
           const device = state.devices.find((candidate) => candidate.id === id);
           return device ? <Link key={device.id} className="ui-link mr-2" to={`/devices/${device.id}?tab=project&returnTo=${encodeURIComponent(`${currentBatchUrl}#exceptions`)}`}>{device.sn}</Link> : null;
         }) : '批次级'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.description}</td><td className="px-3 py-2">{item.recorder}</td><td className="px-3 py-2 text-xs text-gray-500">{item.recordTime}</td><td className="px-3 py-2"><a className="ui-link text-[13px]" href={item.sourceType === '设备结果' ? '#batch-devices' : '#site-records'}>查看详情</a></td></tr>)}
       </Table>
-    </Section>
+    </Section>}
 
     <Section title="操作日志" bodyClassName="p-0">
       <Table head={['操作时间', '操作人', '操作动作', '操作摘要']} empty="暂无批次操作日志">
@@ -330,7 +301,6 @@ export default function DeliveryBatchDetail() {
     <Modal size="lg" isOpen={modal?.type === 'edit'} onClose={() => setModal(null)} title="编辑交付批次"><BatchEditForm batch={batch} locations={locations} users={users} onClose={() => setModal(null)} onSave={saveBatch} /></Modal>
     <Modal size="lg" isOpen={modal?.type === 'feishu' || modal?.type === 'feishu-edit'} onClose={() => setModal(null)} title={editingLink ? '编辑批次飞书链接' : '添加批次补充链接'}><FeishuForm current={editingLink} onClose={() => setModal(null)} onSave={saveLink} /></Modal>
     <Modal size="lg" isOpen={modal?.type === 'erp'} onClose={() => setModal(null)} title="调整 ERP 来源单据"><ErpReferenceForm current={erpReferences} referenceDate={batch.plannedDate || plan.targetDate} projectClient={project?.client} onClose={() => setModal(null)} onSave={saveErpReferences} /></Modal>
-    <Modal size="lg" isOpen={modal?.type === 'site'} onClose={() => setModal(null)} title="添加现场记录"><SiteRecordForm devices={devices} onClose={() => setModal(null)} onSave={saveSiteRecord} /></Modal>
     <Modal size="xl" isOpen={modal?.type === 'result-single' || modal?.type === 'result-batch'} onClose={() => setModal(null)} title={modalRelations.some((item) => item.result !== '未确认') ? '修改设备交付结果' : '录入设备交付结果'}>
       {modalRelations.length ? <DeviceResultForm batch={batch} relations={modalRelations} devices={modalDevices} locations={locations} onClose={() => setModal(null)} onSave={saveResults} /> : <EmptyState>请先选择设备</EmptyState>}
     </Modal>

@@ -7,11 +7,12 @@ import StatusBadge from '../components/StatusBadge';
 import IssueRecordModal from '../components/issues/IssueRecordModal';
 import { createClientId } from '../data/clientId';
 import { nowText } from '../data/dateTime';
-import { ACTIVE_AFTER_SALES_STATUSES, activeAfterSalesOrderForIssue, nextAfterSalesOrderNo } from '../data/afterSalesOrders';
+import { ACTIVE_AFTER_SALES_STATUSES, activeAfterSalesOrderForIssue, nextAfterSalesOrderNo, type AfterSalesOrder } from '../data/afterSalesOrders';
 import { ISSUE_CLOSURE_VALUES, ISSUE_RESOLUTION_STATUSES, TECHNICAL_SUPPORT_DECISIONS, nextIssueNo, type IssueRecord, type TechnicalSupportDecision } from '../data/issuePool';
 
 const display = (value?: string) => value || '—';
 const issueMaterials = (issue: IssueRecord) => issue.attachments?.length ? issue.attachments.map((item) => item.name).join('、') : '—';
+const nonEmptyStrings = (values: Array<string | null | undefined>): string[] => values.filter((value): value is string => typeof value === 'string' && value.length > 0);
 
 type IssueListFilters = {
   query: string;
@@ -27,6 +28,34 @@ type IssueListProps = {
   filters: IssueListFilters;
   setFilters: Dispatch<SetStateAction<IssueListFilters>>;
   onSelect: (issue: IssueRecord) => void;
+};
+
+type IssueDetailState = {
+  devices: Array<{ id: string; robotNo: string; sn: string }>;
+  deliverySubOrders: Array<{ id: string; locationId: string; type: string }>;
+  locations: Array<{ id: string; name?: string }>;
+};
+
+type IssueDetailProps = {
+  issue: IssueRecord;
+  state: IssueDetailState;
+  activeOrder?: AfterSalesOrder;
+  orders: AfterSalesOrder[];
+  onBack: () => void;
+  onEdit: () => void;
+  onTechnical: (decision?: TechnicalSupportDecision) => void;
+};
+
+type TechnicalSupportCardProps = {
+  issue: IssueRecord;
+  activeOrder?: AfterSalesOrder;
+  orders: AfterSalesOrder[];
+  onStart: (decision?: TechnicalSupportDecision) => void;
+};
+
+type AfterSalesOrdersListProps = {
+  orders: AfterSalesOrder[];
+  onView: (order: AfterSalesOrder) => void;
 };
 
 export default function AfterSalesIssues() {
@@ -113,24 +142,20 @@ export default function AfterSalesIssues() {
   return <Page>
     <PageHeader title={selected ? selected.issueNo : tab === 'orders' ? '售后工单' : '问题池'} description={selected ? '问题详情完整展示飞书台账 19 个字段；技术客服判断独立记录。' : tab === 'orders' ? '售后工单仅能由技术客服预处理判断为现场处理的问题转入。' : '统一记录交付与正常运营阶段发现的设备问题。'} actions={!selected && tab === 'issues' ? <Btn variant="primary" onClick={() => setModal({ type: 'create' })}>人工新建问题</Btn> : undefined} />
     {!selected && <div className="flex gap-1 border-b border-gray-200"><button className={`px-3 py-2 text-[13px] border-b-2 ${tab === 'issues' ? 'border-gray-900 text-gray-900 font-medium' : 'border-transparent text-gray-500'}`} onClick={() => setTab('issues')}>问题池</button><button className={`px-3 py-2 text-[13px] border-b-2 ${tab === 'orders' ? 'border-gray-900 text-gray-900 font-medium' : 'border-transparent text-gray-500'}`} onClick={() => setTab('orders')}>售后工单</button></div>}
-    {selected ? <IssueDetail issue={selected} state={state} activeOrder={activeOrder} orders={state.afterSalesOrders.filter((item) => item.issueId === selected.id)} onBack={() => setTab('issues')} onEdit={() => setModal({ type: 'edit', issue: selected })} onTechnical={(decision?: TechnicalSupportDecision) => setModal({ type: 'technical', decision })} /> : tab === 'orders' ? <AfterSalesOrdersList orders={state.afterSalesOrders} onView={(order: any) => navigate(`/after-sales/orders/${order.id}`)} /> : <IssueList issues={issues} state={state} filters={filters} setFilters={setFilters} onSelect={selectIssue} />}
+    {selected ? <IssueDetail issue={selected} state={state} activeOrder={activeOrder} orders={state.afterSalesOrders.filter((item) => item.issueId === selected.id)} onBack={() => setTab('issues')} onEdit={() => setModal({ type: 'edit', issue: selected })} onTechnical={(decision?: TechnicalSupportDecision) => setModal({ type: 'technical', decision })} /> : tab === 'orders' ? <AfterSalesOrdersList orders={state.afterSalesOrders} onView={(order) => navigate(`/after-sales/orders/${order.id}`)} /> : <IssueList issues={issues} state={state} filters={filters} setFilters={setFilters} onSelect={selectIssue} />}
     <IssueRecordModal key={`issue-form-${modal?.type}-${modal?.issue?.id || 'new'}`} isOpen={modal?.type === 'create' || modal?.type === 'edit'} onClose={() => setModal(null)} onSave={modal?.type === 'edit' ? updateIssue : createIssue} defaults={modal?.issue ? { ...modal.issue, reportedAt: modal.issue.reportedAt?.replace(' ', 'T'), materialName: '', materialPurpose: '问题资料', materialNote: '' } : { reporter: state.currentUser || '', reportedAt: nowText().replace(' ', 'T') }} devices={state.devices} projects={state.projects} currentUser={state.currentUser} editing={modal?.type === 'edit'} title={modal?.type === 'edit' ? '编辑问题' : '人工新建问题'} submitLabel="保存问题" />
     <TechnicalSupportModal key={`technical-form-${modal?.decision || 'new'}`} isOpen={modal?.type === 'technical'} issue={selected} activeOrder={activeOrder} initialDecision={modal?.decision} onClose={() => setModal(null)} onSave={saveTechnicalSupport} />
   </Page>;
 }
 
 function IssueList({ issues, state, filters, setFilters, onSelect }: IssueListProps) {
-  const projectOptions = [...new Set(state.issueRecords
-    .map((item) => item.projectName)
-    .filter((value): value is string => Boolean(value)))];
-  const assigneeOptions = [...new Set(state.issueRecords
-    .map((item) => item.assignee)
-    .filter((value): value is string => Boolean(value)))];
+  const projectOptions = [...new Set(nonEmptyStrings(state.issueRecords.map((item) => item.projectName)))];
+  const assigneeOptions = [...new Set(nonEmptyStrings(state.issueRecords.map((item) => item.assignee)))];
 
   return <><Toolbar><SearchInput className="w-64" placeholder="问题编号 / 故障现象 / SN" value={filters.query} onChange={(event) => setFilters((prev) => ({ ...prev, query: event.target.value }))} /><Select value={filters.project} onChange={(event) => setFilters((prev) => ({ ...prev, project: event.target.value }))}><option value="">全部项目</option>{projectOptions.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}><option value="">全部解决状态</option><option value="__empty">未填写</option>{ISSUE_RESOLUTION_STATUSES.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.assignee} onChange={(event) => setFilters((prev) => ({ ...prev, assignee: event.target.value }))}><option value="">全部处理人</option>{assigneeOptions.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.closed} onChange={(event) => setFilters((prev) => ({ ...prev, closed: event.target.value }))}><option value="">全部闭环状态</option><option value="__empty">未填写</option>{ISSUE_CLOSURE_VALUES.map((item) => <option key={item}>{item}</option>)}</Select></Toolbar><Section title={`问题池（${issues.length}）`} bodyClassName="p-0"><Table tableClassName="min-w-[1260px]" head={['问题编号', '客户名称', '故障现象描述', '机器人 SN 编号 or 设备 WIFI 名称', '项目', '提报人', '提报时间', '解决状态', '处理人', '问题是否闭环', '操作']} empty="暂无问题记录">{issues.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]"><td className="w-32 whitespace-nowrap px-3 py-2 font-mono text-xs"><button className="ui-link" onClick={() => onSelect(item)}>{item.issueNo}</button></td><td className="px-3 py-2">{item.customerName || '—'}</td><td className="w-[340px] px-3 py-2 text-xs leading-5 text-gray-600" title={item.symptom || ''}><span className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.symptom || '—'}</span></td><td className="w-44 whitespace-nowrap px-3 py-2 font-mono text-xs">{item.deviceIdentifier || '—'}</td><td className="px-3 py-2">{item.projectName || '—'}</td><td className="px-3 py-2">{item.reporter || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">{item.reportedAt || '—'}</td><td className="px-3 py-2"><StatusBadge status={display(item.resolutionStatus)} /></td><td className="px-3 py-2">{item.assignee || '—'}</td><td className="px-3 py-2"><StatusBadge status={display(item.isClosed)} /></td><td className="w-24 whitespace-nowrap px-3 py-2"><button className="ui-link text-[13px]" onClick={() => onSelect(item)}>查看详情</button></td></tr>)}</Table></Section></>;
 }
 
-function IssueDetail({ issue, state, activeOrder, orders, onBack, onEdit, onTechnical }: any) {
+function IssueDetail({ issue, state, activeOrder, orders, onBack, onEdit, onTechnical }: IssueDetailProps) {
   const device = issue.deviceId ? state.devices.find((item) => item.id === issue.deviceId) : undefined;
   const deliveryOrder = issue.deliveryContext ? state.deliverySubOrders.find((item) => item.id === issue.deliveryContext.subOrderId) : undefined;
   const location = deliveryOrder ? state.locations.find((item) => item.id === deliveryOrder.locationId) : undefined;
@@ -147,7 +172,7 @@ function IssueDetail({ issue, state, activeOrder, orders, onBack, onEdit, onTech
   </>;
 }
 
-function TechnicalSupportCard({ issue, activeOrder, orders, onStart }: any) {
+function TechnicalSupportCard({ issue, activeOrder, orders, onStart }: TechnicalSupportCardProps) {
   const latest = issue.technicalSupport;
   const latestOrder = orders?.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const handoffHint = latest?.decision === '转交付侧处理' ? '当前待办：返回关联交付任务继续处理。' : latest?.decision === '需要现场处理，转售后工单' && activeOrder ? `关联售后工单 ${activeOrder.orderNo} 当前状态：${activeOrder.status}。` : latest?.decision === '需要现场处理，转售后工单' && latestOrder?.status === '已关单' ? latestOrder.issueOutcome === 'resolved' ? '售后现场处理已完成，来源问题已同步闭环。' : '售后现场处理已完成，当前问题继续观察。' : '技术客服判断仅记录流程动作，不会自动修改问题台账字段。';
@@ -166,4 +191,4 @@ function TechnicalSupportModal({ isOpen, issue, activeOrder, initialDecision, on
   return <Modal isOpen={isOpen} onClose={onClose} title="进行技术客服预处理"><div className="space-y-4"><div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600"><p>问题编号：{issue.issueNo}</p><p>客户：{display(issue.customerName)}　项目：{display(issue.projectName)}</p><p>设备标识：{display(issue.deviceIdentifier)}</p><p>故障现象：{display(issue.symptom)}</p><p>故障分类：{[issue.causeLevel1, issue.causeLevel2, issue.causeLevel3].filter(Boolean).join(' / ') || '—'}</p><p>现场排查：{display(issue.siteTroubleshooting)}　临时方案：{display(issue.temporarySolution)}</p><p>解决状态：{display(issue.resolutionStatus)}　处理人：{display(issue.assignee)}　问题是否闭环：{display(issue.isClosed)}</p></div><p className="text-xs text-gray-500">如需补充或修正故障描述、分类、根因或处理信息，请先编辑问题记录。</p><div className="space-y-2"><p className="text-xs font-medium text-gray-700">处理判断<span className="ml-1 text-red-500">*</span></p>{TECHNICAL_SUPPORT_DECISIONS.map((item) => <label key={item} className={`flex items-start gap-2 rounded-md border p-3 text-[13px] ${disabled(item) ? 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400' : 'cursor-pointer border-gray-200 hover:bg-gray-50'}`}><input type="radio" name="technical-decision" disabled={disabled(item)} checked={decision === item} onChange={() => { setDecision(item); setError(''); }} /><span>{item}<small className="mt-1 block text-xs text-gray-400">{reason(item)}</small></span></label>)}</div><label className="block space-y-1"><span className="text-xs text-gray-600">本次判断说明 <b className="text-red-500">*</b></span><textarea className="ui-input min-h-20 w-full" value={note} onChange={(event) => { setNote(event.target.value); setError(''); }} /></label>{error && <p className="text-xs text-red-600">{error}</p>}<div className="flex justify-end gap-2"><Btn onClick={onClose}>取消</Btn><Btn variant="primary" disabled={!decision || !note.trim()} onClick={submit}>{decision === '需要现场处理，转售后工单' ? '确认并转为售后工单' : '保存处理判断'}</Btn></div></div></Modal>;
 }
 
-function AfterSalesOrdersList({ orders, onView }: any) { const [filters, setFilters] = useState({ query: '', project: '', status: '', engineer: '' }); const filtered = orders.filter((order) => { const key = filters.query.toLowerCase(); return (!key || `${order.orderNo} ${order.issueNo}`.toLowerCase().includes(key)) && (!filters.project || order.snapshot.projectName === filters.project) && (!filters.status || order.status === filters.status) && (!filters.engineer || order.engineer === filters.engineer); }); return <><Toolbar><SearchInput className="w-56" placeholder="工单号 / 问题编号" value={filters.query} onChange={(event) => setFilters((prev) => ({ ...prev, query: event.target.value }))} /><Select value={filters.project} onChange={(event) => setFilters((prev) => ({ ...prev, project: event.target.value }))}><option value="">全部项目</option>{[...new Set(orders.map((item) => item.snapshot.projectName).filter(Boolean))].map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}><option value="">全部状态</option>{ACTIVE_AFTER_SALES_STATUSES.concat(['已关单', '已取消']).map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.engineer} onChange={(event) => setFilters((prev) => ({ ...prev, engineer: event.target.value }))}><option value="">全部售后工程师</option>{[...new Set(orders.map((item) => item.engineer).filter(Boolean))].map((item) => <option key={item}>{item}</option>)}</Select></Toolbar><Section title={`售后工单（${filtered.length}）`} bodyClassName="p-0"><Table tableClassName="min-w-[1200px]" head={['售后工单号', '来源问题编号', '客户名称', '项目', '设备标识', '故障现象描述', '当前状态', '售后工程师', '预计上门时间', '更新时间', '操作']} empty="暂无售后工单。请在问题详情完成技术客服预处理后转入。">{filtered.map((order) => <tr key={order.id}><td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{order.orderNo}</td><td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{order.issueNo}</td><td className="px-3 py-2">{order.snapshot.customerName || '—'}</td><td className="px-3 py-2">{order.snapshot.projectName || '—'}</td><td className="px-3 py-2 font-mono text-xs">{order.snapshot.deviceIdentifier || '—'}</td><td className="w-[280px] px-3 py-2 text-xs text-gray-600" title={order.snapshot.symptom}><span className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{order.snapshot.symptom || '—'}</span></td><td className="px-3 py-2"><StatusBadge status={order.status} /></td><td className="px-3 py-2">{order.engineer || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs">{order.plannedVisitAt || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs">{order.updatedAt}</td><td className="whitespace-nowrap px-3 py-2"><button className="ui-link text-[13px]" onClick={() => onView(order)}>查看详情</button></td></tr>)}</Table></Section></>; }
+function AfterSalesOrdersList({ orders, onView }: AfterSalesOrdersListProps) { const [filters, setFilters] = useState({ query: '', project: '', status: '', engineer: '' }); const filtered = orders.filter((order) => { const key = filters.query.toLowerCase(); return (!key || `${order.orderNo} ${order.issueNo}`.toLowerCase().includes(key)) && (!filters.project || order.snapshot.projectName === filters.project) && (!filters.status || order.status === filters.status) && (!filters.engineer || order.engineer === filters.engineer); }); const projectOptions = [...new Set(nonEmptyStrings(orders.map((item) => item.snapshot.projectName)))]; const engineerOptions = [...new Set(nonEmptyStrings(orders.map((item) => item.engineer)))]; return <><Toolbar><SearchInput className="w-56" placeholder="工单号 / 问题编号" value={filters.query} onChange={(event) => setFilters((prev) => ({ ...prev, query: event.target.value }))} /><Select value={filters.project} onChange={(event) => setFilters((prev) => ({ ...prev, project: event.target.value }))}><option value="">全部项目</option>{projectOptions.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}><option value="">全部状态</option>{ACTIVE_AFTER_SALES_STATUSES.concat(['已关单', '已取消']).map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.engineer} onChange={(event) => setFilters((prev) => ({ ...prev, engineer: event.target.value }))}><option value="">全部售后工程师</option>{engineerOptions.map((item) => <option key={item}>{item}</option>)}</Select></Toolbar><Section title={`售后工单（${filtered.length}）`} bodyClassName="p-0"><Table tableClassName="min-w-[1200px]" head={['售后工单号', '来源问题编号', '客户名称', '项目', '设备标识', '故障现象描述', '当前状态', '售后工程师', '预计上门时间', '更新时间', '操作']} empty="暂无售后工单。请在问题详情完成技术客服预处理后转入。">{filtered.map((order) => <tr key={order.id}><td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{order.orderNo}</td><td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{order.issueNo}</td><td className="px-3 py-2">{order.snapshot.customerName || '—'}</td><td className="px-3 py-2">{order.snapshot.projectName || '—'}</td><td className="px-3 py-2 font-mono text-xs">{order.snapshot.deviceIdentifier || '—'}</td><td className="w-[280px] px-3 py-2 text-xs text-gray-600" title={order.snapshot.symptom}><span className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{order.snapshot.symptom || '—'}</span></td><td className="px-3 py-2"><StatusBadge status={order.status} /></td><td className="px-3 py-2">{order.engineer || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs">{order.plannedVisitAt || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs">{order.updatedAt}</td><td className="whitespace-nowrap px-3 py-2"><button className="ui-link text-[13px]" onClick={() => onView(order)}>查看详情</button></td></tr>)}</Table></Section></>; }

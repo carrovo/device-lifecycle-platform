@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Btn, DescList, Input, Page, PageHeader, Section, Select, SearchInput, Table, Toolbar } from '../components/ui';
@@ -12,6 +12,22 @@ import { ISSUE_CLOSURE_VALUES, ISSUE_RESOLUTION_STATUSES, TECHNICAL_SUPPORT_DECI
 
 const display = (value?: string) => value || '—';
 const issueMaterials = (issue: IssueRecord) => issue.attachments?.length ? issue.attachments.map((item) => item.name).join('、') : '—';
+
+type IssueListFilters = {
+  query: string;
+  project: string;
+  status: string;
+  assignee: string;
+  closed: string;
+};
+
+type IssueListProps = {
+  issues: IssueRecord[];
+  state: { issueRecords: IssueRecord[] };
+  filters: IssueListFilters;
+  setFilters: Dispatch<SetStateAction<IssueListFilters>>;
+  onSelect: (issue: IssueRecord) => void;
+};
 
 export default function AfterSalesIssues() {
   const { state, dispatch } = useApp();
@@ -103,8 +119,15 @@ export default function AfterSalesIssues() {
   </Page>;
 }
 
-function IssueList({ issues, state, filters, setFilters, onSelect }: any) {
-  return <><Toolbar><SearchInput className="w-64" placeholder="问题编号 / 故障现象 / SN" value={filters.query} onChange={(event) => setFilters((prev) => ({ ...prev, query: event.target.value }))} /><Select value={filters.project} onChange={(event) => setFilters((prev) => ({ ...prev, project: event.target.value }))}><option value="">全部项目</option>{[...new Set(state.issueRecords.map((item) => item.projectName).filter(Boolean))].map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}><option value="">全部解决状态</option><option value="__empty">未填写</option>{ISSUE_RESOLUTION_STATUSES.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.assignee} onChange={(event) => setFilters((prev) => ({ ...prev, assignee: event.target.value }))}><option value="">全部处理人</option>{[...new Set(state.issueRecords.map((item) => item.assignee).filter(Boolean))].map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.closed} onChange={(event) => setFilters((prev) => ({ ...prev, closed: event.target.value }))}><option value="">全部闭环状态</option><option value="__empty">未填写</option>{ISSUE_CLOSURE_VALUES.map((item) => <option key={item}>{item}</option>)}</Select></Toolbar><Section title={`问题池（${issues.length}）`} bodyClassName="p-0"><Table tableClassName="min-w-[1260px]" head={['问题编号', '客户名称', '故障现象描述', '机器人 SN 编号 or 设备 WIFI 名称', '项目', '提报人', '提报时间', '解决状态', '处理人', '问题是否闭环', '操作']} empty="暂无问题记录">{issues.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]"><td className="w-32 whitespace-nowrap px-3 py-2 font-mono text-xs"><button className="ui-link" onClick={() => onSelect(item)}>{item.issueNo}</button></td><td className="px-3 py-2">{item.customerName || '—'}</td><td className="w-[340px] px-3 py-2 text-xs leading-5 text-gray-600" title={item.symptom || ''}><span className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.symptom || '—'}</span></td><td className="w-44 whitespace-nowrap px-3 py-2 font-mono text-xs">{item.deviceIdentifier || '—'}</td><td className="px-3 py-2">{item.projectName || '—'}</td><td className="px-3 py-2">{item.reporter || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">{item.reportedAt || '—'}</td><td className="px-3 py-2"><StatusBadge status={display(item.resolutionStatus)} /></td><td className="px-3 py-2">{item.assignee || '—'}</td><td className="px-3 py-2"><StatusBadge status={display(item.isClosed)} /></td><td className="w-24 whitespace-nowrap px-3 py-2"><button className="ui-link text-[13px]" onClick={() => onSelect(item)}>查看详情</button></td></tr>)}</Table></Section></>;
+function IssueList({ issues, state, filters, setFilters, onSelect }: IssueListProps) {
+  const projectOptions = [...new Set(state.issueRecords
+    .map((item) => item.projectName)
+    .filter((value): value is string => Boolean(value)))];
+  const assigneeOptions = [...new Set(state.issueRecords
+    .map((item) => item.assignee)
+    .filter((value): value is string => Boolean(value)))];
+
+  return <><Toolbar><SearchInput className="w-64" placeholder="问题编号 / 故障现象 / SN" value={filters.query} onChange={(event) => setFilters((prev) => ({ ...prev, query: event.target.value }))} /><Select value={filters.project} onChange={(event) => setFilters((prev) => ({ ...prev, project: event.target.value }))}><option value="">全部项目</option>{projectOptions.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.status} onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}><option value="">全部解决状态</option><option value="__empty">未填写</option>{ISSUE_RESOLUTION_STATUSES.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.assignee} onChange={(event) => setFilters((prev) => ({ ...prev, assignee: event.target.value }))}><option value="">全部处理人</option>{assigneeOptions.map((item) => <option key={item}>{item}</option>)}</Select><Select value={filters.closed} onChange={(event) => setFilters((prev) => ({ ...prev, closed: event.target.value }))}><option value="">全部闭环状态</option><option value="__empty">未填写</option>{ISSUE_CLOSURE_VALUES.map((item) => <option key={item}>{item}</option>)}</Select></Toolbar><Section title={`问题池（${issues.length}）`} bodyClassName="p-0"><Table tableClassName="min-w-[1260px]" head={['问题编号', '客户名称', '故障现象描述', '机器人 SN 编号 or 设备 WIFI 名称', '项目', '提报人', '提报时间', '解决状态', '处理人', '问题是否闭环', '操作']} empty="暂无问题记录">{issues.map((item) => <tr key={item.id} className="hover:bg-[#fafafa]"><td className="w-32 whitespace-nowrap px-3 py-2 font-mono text-xs"><button className="ui-link" onClick={() => onSelect(item)}>{item.issueNo}</button></td><td className="px-3 py-2">{item.customerName || '—'}</td><td className="w-[340px] px-3 py-2 text-xs leading-5 text-gray-600" title={item.symptom || ''}><span className="block overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{item.symptom || '—'}</span></td><td className="w-44 whitespace-nowrap px-3 py-2 font-mono text-xs">{item.deviceIdentifier || '—'}</td><td className="px-3 py-2">{item.projectName || '—'}</td><td className="px-3 py-2">{item.reporter || '—'}</td><td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">{item.reportedAt || '—'}</td><td className="px-3 py-2"><StatusBadge status={display(item.resolutionStatus)} /></td><td className="px-3 py-2">{item.assignee || '—'}</td><td className="px-3 py-2"><StatusBadge status={display(item.isClosed)} /></td><td className="w-24 whitespace-nowrap px-3 py-2"><button className="ui-link text-[13px]" onClick={() => onSelect(item)}>查看详情</button></td></tr>)}</Table></Section></>;
 }
 
 function IssueDetail({ issue, state, activeOrder, orders, onBack, onEdit, onTechnical }: any) {

@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import StatusBadge from '../components/StatusBadge';
 import { EmptyState, Page, PageHeader, Section, StatCard, StatGrid, Table } from '../components/ui';
 import { ACTIVE_AFTER_SALES_STATUSES } from '../data/afterSalesOrders';
+import type { IssueRecord } from '../data/issuePool';
 
 const TABS = [
   { key: 'delivery', label: '交付看板' },
@@ -67,7 +68,7 @@ function QualityDashboard({ state }: { state: any }) {
 function AfterSalesDashboard({ state }: { state: any }) {
   const orders = state.afterSalesOrders;
   const activeOrders = orders.filter((item) => ACTIVE_AFTER_SALES_STATUSES.includes(item.status));
-  const issuesById = new Map(state.issueRecords.map((item) => [item.id, item]));
+  const issuesById = new Map<string, IssueRecord>((state.issueRecords as IssueRecord[]).map((item): [string, IssueRecord] => [item.id, item]));
   const closedOrders = orders.filter((item) => item.status === '已关单');
   return <div className="space-y-4">
     <StatGrid cols={5}><StatCard label="进行中工单" value={activeOrders.length} /><StatCard label="待分派" value={orders.filter((item) => item.status === '待分派').length} /><StatCard label="待上门" value={orders.filter((item) => item.status === '待上门').length} tone="warning" /><StatCard label="现场处理中" value={orders.filter((item) => item.status === '现场处理中').length} tone="warning" /><StatCard label="已关单" value={closedOrders.length} tone="success" /></StatGrid>

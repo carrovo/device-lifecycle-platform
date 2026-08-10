@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Btn, DescList, Input, Page, PageHeader, Section, Select, Stepper, Table } from '../components/ui';
@@ -28,6 +28,9 @@ export default function AfterSalesOrderDetail() {
   if (!order) return <Page><PageHeader title="售后工单不存在" /><Btn as="link" to="/after-sales?tab=orders">返回售后工单</Btn></Page>;
   const readOnly = order.status === '已关单' || order.status === '已取消';
   const guidance = afterSalesGuidance(order);
+  const replacementItems: Array<readonly [ReactNode, ReactNode]> = order.involvesReplacement
+    ? [['换前对象', dash(order.replacementBefore)], ['换后对象', dash(order.replacementAfter)], ['换件说明', dash(order.replacementNote)]]
+    : [];
   const update = (patch: Partial<AfterSalesOrder>, action: string, notes: string) => {
     const time = nowText();
     dispatch({ type: 'UPDATE_AFTER_SALES_ORDER', payload: { ...order, ...patch, updatedAt: time, logs: [...order.logs, { id: createClientId('ASOLOG'), time, operator: state.currentUser || '当前用户', action, notes }] } });
@@ -58,7 +61,7 @@ export default function AfterSalesOrderDetail() {
       <DescList cols={3} items={[["分派人", dash(order.assignedBy)], ['售后工程师', dash(order.engineer)], ['分派时间', dash(order.assignedAt)], ['接单时间', dash(order.acceptedAt)], ['预计上门时间', dash(order.plannedVisitAt)], ['实际上门时间', dash(order.actualVisitAt)], ['上门说明', dash(order.visitNote)]]} />
     </Section>
     <Section title="现场处理" subtitle="现场工程师填写的实际处理事实，不覆盖来源问题快照。" right={!readOnly && order.status === '现场处理中' ? <div className="flex gap-2"><Btn size="sm" onClick={() => setModal('material')}>补充资料</Btn><Btn size="sm" onClick={() => setModal('handle')}>记录现场处理</Btn></div> : undefined}>
-      <DescList cols={2} items={[["现场处理说明", dash(order.onsiteHandling)], ['实际故障原因', dash(order.actualCause)], ['实际处理方案', dash(order.actualSolution)], ['最终处理结果', dash(order.finalResult)], ['是否涉及换件', order.involvesReplacement ? '是' : '否'], ...(order.involvesReplacement ? [['换前对象', dash(order.replacementBefore)], ['换后对象', dash(order.replacementAfter)], ['换件说明', dash(order.replacementNote)]] : [])]} />
+      <DescList cols={2} items={[["现场处理说明", dash(order.onsiteHandling)], ['实际故障原因', dash(order.actualCause)], ['实际处理方案', dash(order.actualSolution)], ['最终处理结果', dash(order.finalResult)], ['是否涉及换件', order.involvesReplacement ? '是' : '否'], ...replacementItems]} />
       <div className="mt-4 border-t border-gray-100 pt-3"><p className="mb-2 text-xs text-gray-400">现场资料（暂不上传真实文件）</p><AttachmentList items={order.materials} empty="暂无现场资料。" /></div>
     </Section>
     <Section title="关单信息"><DescList cols={3} items={[["关单人", dash(order.closedBy)], ['关单时间', dash(order.closedAt)], ['关单说明', dash(order.closeNote)], ['取消人', dash(order.cancelledBy)], ['取消时间', dash(order.cancelledAt)], ['取消原因', dash(order.cancelReason)]]} /></Section>

@@ -11,9 +11,21 @@ export const ISSUE_FIELD_DEFINITIONS = [
 
 export const ISSUE_RESOLUTION_STATUSES = ['根因分析进行中', '已完成', '重复', '观察导入措施是否有效', '挂起'] as const;
 export const ISSUE_CLOSURE_VALUES = ['是', '否'] as const;
-export const TECHNICAL_SUPPORT_DECISIONS = ['远程处理', '转交付侧处理', '需要现场处理，转售后工单'] as const;
-export type TechnicalSupportDecision = (typeof TECHNICAL_SUPPORT_DECISIONS)[number];
-export type TechnicalSupportRecord = { decision: TechnicalSupportDecision; note: string; handler: string; handledAt: string };
+export const TECHNICAL_SUPPORT_DECISIONS = ['远程处理', '升级研发协助', '需要现场处理，转售后工单'] as const;
+export type TechnicalSupportDecision = (typeof TECHNICAL_SUPPORT_DECISIONS)[number] | '转交付侧处理';
+export type TechnicalSupportRecord = {
+  decision: TechnicalSupportDecision;
+  note: string;
+  handler: string;
+  handledAt: string;
+  researchFeedbacks?: Array<{ content: string; handler: string; handledAt: string }>;
+};
+
+export function technicalSupportDecisionLabel(decision?: string) {
+  if (decision === '远程处理') return '远程解决';
+  if (decision === '需要现场处理，转售后工单') return '转售后工单';
+  return decision || '—';
+}
 
 export const ISSUE_CAUSE_LEVEL_1 = ['软件', '硬件', '结构', '生产', '设计问题', '其它（极少情况填写）', '使用问题'] as const;
 export const ISSUE_CAUSE_LEVEL_2 = ['硬件-机械臂', '硬件-末端执行器', '硬件-ORIN', '硬件-底盘', '硬件-DCDC模块', '硬件-电机', '软件-感知记忆', '软件-播报交互', '软件-动作规划', '软件-灵动模式', '软件-网络通讯', '软件-机械臂通讯', '其他', '生产-工艺', '软件-遥操平台', '硬件-头部屏幕'] as const;

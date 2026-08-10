@@ -16,7 +16,7 @@ export type AfterSalesOrder = {
   locationId?: string;
   batchId?: string;
   status: AfterSalesStatus;
-  snapshot: { customerName: string; projectName: string; deviceIdentifier: string; symptom: string; causeLevel1: string; causeLevel2: string; causeLevel3: string; rootCause: string; longTermSolution: string; attachments: AfterSalesMaterial[]; technicalSupport?: { decision: string; note: string; handler: string; handledAt: string } };
+  snapshot: { customerName: string; projectName: string; deviceIdentifier: string; symptom: string; siteTroubleshooting: string; temporarySolution: string; causeLevel1: string; causeLevel2: string; causeLevel3: string; rootCause: string; longTermSolution: string; attachments: AfterSalesMaterial[]; technicalSupport?: { decision: string; note: string; handler: string; handledAt: string } };
   assignedBy?: string;
   engineer?: string;
   assignedAt?: string;
@@ -29,6 +29,9 @@ export type AfterSalesOrder = {
   actualSolution?: string;
   finalResult?: string;
   involvesReplacement?: boolean;
+  replacementBefore?: string;
+  replacementAfter?: string;
+  replacementNote?: string;
   materials: AfterSalesMaterial[];
   closedBy?: string;
   closedAt?: string;

@@ -17,15 +17,9 @@ const ICONS = {
 };
 
 // 一级导航 + 可展开的二级菜单。二级菜单通过 ?tab= 深链到既有页面。
-// R6-A：ERP 单据中心从项目中心独立；看板收口为 总览/质量/售后；生产计划→生产关联、交付计划→交付执行。
 const NAV_ITEMS = [
   { label: '首页', path: '/home', icon: 'home' },
-  {
-    label: '看板中心', base: '/dashboard', icon: 'dashboard',
-    children: [
-      { label: '后续规划', to: '/dashboard', tab: null },
-    ],
-  },
+  { label: '看板中心', path: '/dashboard', icon: 'dashboard' },
   {
     label: 'ERP 单据中心', base: '/erp-center', icon: 'erp',
     children: [

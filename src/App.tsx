@@ -14,7 +14,7 @@ import DeliveryBatchDetail from './pages/DeliveryBatchDetail';
 import DeliverySubOrderDetail from './pages/DeliverySubOrderDetail';
 import AssetsPage from './pages/AssetsPage';
 import DeviceDetail from './pages/DeviceDetail';
-import PlanningPlaceholder from './pages/PlanningPlaceholder';
+import DashboardPage from './pages/DashboardPage';
 import AfterSalesIssues from './pages/AfterSalesIssues';
 import AfterSalesOrderDetail from './pages/AfterSalesOrderDetail';
 import SystemPage from './pages/SystemPage';
@@ -50,7 +50,7 @@ function AppRoutes() {
        <Routes>
         <Route path="/" element={<Navigate to={defaultPath} replace />} />
         <Route path={ROUTES.home} element={<ProtectedPage><HomePage /></ProtectedPage>} />
-        <Route path="/dashboard" element={<ProtectedPage><PlanningPlaceholder type="dashboard" /></ProtectedPage>} />
+        <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />
         <Route path="/erp-center" element={<ProtectedPage><ErpCenter /></ProtectedPage>} />
         <Route path="/production" element={<ProtectedPage><ProductionCenter /></ProtectedPage>} />
         <Route path="/projects" element={<ProtectedPage><ProjectsCenter /></ProtectedPage>} />

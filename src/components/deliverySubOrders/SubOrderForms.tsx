@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from '../Modal';
 import { Btn, Input, Select } from '../ui';
+import { AttachmentUpload } from '../AttachmentUpload';
 import { ACCEPTANCE_RESULTS, INSTALLATION_STATUSES } from '../../data/deliverySubOrders';
 
 function Footer({ onClose, onSubmit, submitLabel, disabled = false, hint = '' }) {
@@ -18,7 +19,7 @@ function ContextBox({ children }) {
 }
 
 function MaterialFields({ form, setForm, title = '资料记录（暂不上传真实文件）' }) {
-  return <div className="rounded-md border border-gray-200 p-3 space-y-3"><p className="text-xs font-medium text-gray-700">{title}</p><Input className="w-full" placeholder="文件名（选填）" value={form.materialName || ''} onChange={(event) => setForm((prev) => ({ ...prev, materialName: event.target.value }))} /><Input className="w-full" placeholder="资料用途" value={form.materialPurpose || ''} onChange={(event) => setForm((prev) => ({ ...prev, materialPurpose: event.target.value }))} /><Input className="w-full" placeholder="资料备注" value={form.materialNote || ''} onChange={(event) => setForm((prev) => ({ ...prev, materialNote: event.target.value }))} /></div>;
+  return <div className="rounded-md border border-gray-200 p-3 space-y-3"><p className="text-xs font-medium text-gray-700">{title}</p><AttachmentUpload value={form.materialName || ''} onChange={(materialName) => setForm((prev) => ({ ...prev, materialName }))} label="附件" /><Input className="w-full" placeholder="资料用途" value={form.materialPurpose || ''} onChange={(event) => setForm((prev) => ({ ...prev, materialPurpose: event.target.value }))} /><Input className="w-full" placeholder="资料备注" value={form.materialNote || ''} onChange={(event) => setForm((prev) => ({ ...prev, materialNote: event.target.value }))} /></div>;
 }
 
 export function AssignModal({ isOpen, onClose, onSave, options, subOrder }) {
@@ -49,7 +50,7 @@ export function MaterialModal({ isOpen, onClose, onSave, objectLabel }) {
     if (!form.purpose.trim()) return setError('请填写资料用途。');
     onSave(form);
   };
-  return <Modal isOpen={isOpen} onClose={onClose} title="添加资料记录"><div className="space-y-4"><ContextBox>资料归属：{objectLabel}<br />仅记录资料信息，当前不会上传或存储真实文件。</ContextBox><div><label className="block text-xs text-gray-600 mb-1">文件名 <span className="text-red-500">*</span></label><Input className="w-full" value={form.name} onChange={(event) => { setForm((prev) => ({ ...prev, name: event.target.value })); setError(''); }} /></div><div><label className="block text-xs text-gray-600 mb-1">资料用途 <span className="text-red-500">*</span></label><Input className="w-full" value={form.purpose} onChange={(event) => { setForm((prev) => ({ ...prev, purpose: event.target.value })); setError(''); }} /></div><div><label className="block text-xs text-gray-600 mb-1">备注 <span className="text-gray-400">（选填）</span></label><textarea className="ui-input w-full min-h-16" value={form.note} onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))} /></div>{error && <p className="text-xs text-red-600">{error}</p>}<Footer onClose={onClose} onSubmit={submit} submitLabel="添加资料记录" hint="保存后显示在当前业务记录下。" /></div></Modal>;
+  return <Modal isOpen={isOpen} onClose={onClose} title="添加资料记录"><div className="space-y-4"><ContextBox>资料归属：{objectLabel}<br />仅记录资料信息，当前不会上传或存储真实文件。</ContextBox><AttachmentUpload value={form.name} onChange={(name) => { setForm((prev) => ({ ...prev, name })); setError(''); }} label="附件" required /><div><label className="block text-xs text-gray-600 mb-1">资料用途 <span className="text-red-500">*</span></label><Input className="w-full" value={form.purpose} onChange={(event) => { setForm((prev) => ({ ...prev, purpose: event.target.value })); setError(''); }} /></div><div><label className="block text-xs text-gray-600 mb-1">备注 <span className="text-gray-400">（选填）</span></label><textarea className="ui-input w-full min-h-16" value={form.note} onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))} /></div>{error && <p className="text-xs text-red-600">{error}</p>}<Footer onClose={onClose} onSubmit={submit} submitLabel="添加资料记录" hint="保存后显示在当前业务记录下。" /></div></Modal>;
 }
 
 export function BlockModal({ isOpen, onClose, onSave, owner, nodeLabel, subOrder }) {

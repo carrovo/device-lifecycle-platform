@@ -1,5 +1,6 @@
 import StatusBadge from '../StatusBadge';
 import { Table } from '../ui';
+import { AttachmentList } from '../AttachmentUpload';
 import type { DeliverySubOrder } from '../../data/deliverySubOrders';
 
 const requirementLabel = { required: '必填', optional: '选填', 'not-applicable': '不适用' };
@@ -15,7 +16,7 @@ export default function SubOrderDeploymentFlow({ subOrder, onComplete, onMateria
         const isCurrent = item.key === subOrder.currentNode && editable;
         return <tr key={item.key} className={isCurrent ? 'bg-amber-50/50' : 'hover:bg-[#fafafa]'}>
           <td className="px-3 py-2"><div className="font-medium text-gray-700">{item.label}</div>{isCurrent && <div className="text-[11px] text-amber-700 mt-0.5">当前现场任务</div>}</td>
-          <td className="px-3 py-2 text-xs text-gray-600">{requirementLabel[item.requirement]}</td><td className="px-3 py-2"><StatusBadge status={displayStatus} /></td><td className="px-3 py-2 text-xs text-gray-500">{item.completedAt || '—'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.note || '—'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.materials.length ? item.materials.map((material) => material.name).join('、') : '—'}</td>
+          <td className="px-3 py-2 text-xs text-gray-600">{requirementLabel[item.requirement]}</td><td className="px-3 py-2"><StatusBadge status={displayStatus} /></td><td className="px-3 py-2 text-xs text-gray-500">{item.completedAt || '—'}</td><td className="px-3 py-2 text-xs text-gray-600">{item.note || '—'}</td><td className="min-w-44 px-3 py-2"><AttachmentList items={item.materials} empty="—" /></td>
           <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-3">{editable && item.requirement !== 'not-applicable' && item.status !== '已完成' && <button className="ui-link text-[13px]" onClick={() => onComplete(item.key)}>记录当前执行结果</button>}{editable && item.requirement !== 'not-applicable' && <button className="ui-link text-[13px]" onClick={() => onMaterial(item.key)}>添加资料</button>}</div>{!editable && !readOnly && <span className="text-xs text-gray-400">当前阶段不可更新</span>}{readOnly && <span className="text-xs text-gray-400">已完成，只读</span>}</td>
         </tr>;
       })}

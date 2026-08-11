@@ -17,6 +17,8 @@ import DeviceDetail from './pages/DeviceDetail';
 import DashboardPage from './pages/DashboardPage';
 import AfterSalesIssues from './pages/AfterSalesIssues';
 import AfterSalesOrderDetail from './pages/AfterSalesOrderDetail';
+import MobileTasksPage from './mobile/pages/MobileTasksPage';
+import MobileAfterSalesOrderDetail from './mobile/pages/MobileAfterSalesOrderDetail';
 import SystemPage from './pages/SystemPage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 import { useRole } from './context/RoleContext';
@@ -44,6 +46,21 @@ function ProtectedPage({ children }: PropsWithChildren): ReactElement {
 function AppRoutes() {
   const { defaultPath } = useRole();
   const location = useLocation();
+  const mobilePath = location.pathname === '/mobile' || location.pathname.startsWith('/mobile/');
+
+  if (mobilePath) {
+    return (
+      <PageErrorBoundary resetKey={`${location.pathname}${location.search}`}>
+        <Routes>
+          <Route path="/mobile" element={<Navigate to="/mobile/tasks" replace />} />
+          <Route path="/mobile/tasks" element={<MobileTasksPage />} />
+          <Route path="/mobile/after-sales/:id" element={<MobileAfterSalesOrderDetail />} />
+          <Route path="*" element={<Navigate to="/mobile/tasks" replace />} />
+        </Routes>
+      </PageErrorBoundary>
+    );
+  }
+
   return (
     <Layout>
       <PageErrorBoundary resetKey={`${location.pathname}${location.search}`}>

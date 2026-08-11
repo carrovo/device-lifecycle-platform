@@ -6,7 +6,7 @@ import { createOperationLog, getOperationLogs } from '../api/system';
 import { getBusinessDictionaries } from '../api/dictionaries';
 import { configureProductionSteps } from '../data/prdV12';
 import { createDeliverySubOrderSeeds } from '../data/deliverySubOrders';
-import { createIssuePoolSeeds } from '../data/issuePool';
+import { createIssuePoolSeeds, type IssueRecord } from '../data/issuePool';
 import { createAfterSalesOrderSeeds, type AfterSalesOrder } from '../data/afterSalesOrders';
 import { createClientId } from '../data/clientId';
 import { nowText } from '../data/dateTime';
@@ -51,6 +51,28 @@ import {
 
 const AppContext = createContext<any>(null);
 const arrayOrEmpty = (value) => Array.isArray(value) ? value : [];
+const ISSUE_STORAGE_KEY = 'device-lifecycle-prototype-issues-v1';
+const AFTER_SALES_STORAGE_KEY = 'device-lifecycle-prototype-after-sales-v1';
+
+function restorePrototypeRecords<T>(key: string, fallback: () => T[]) {
+  try {
+    if (typeof window === 'undefined') return fallback();
+    const value = window.localStorage.getItem(key);
+    if (!value) return fallback();
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.every((item) => item && typeof item === 'object') ? parsed as T[] : fallback();
+  } catch {
+    return fallback();
+  }
+}
+
+function persistPrototypeRecords(key: string, records: unknown[]) {
+  try {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(records));
+  } catch {
+    // Local persistence is optional for the prototype and must not block the page.
+  }
+}
 
 const normalizeDevice = (device: Record<string, any> = {}): any => ({
   ...device,
@@ -192,7 +214,7 @@ async function loadDeliveryResources(id, requestedBatchId = '') {
   };
 }
 
-const initialState = {
+const createInitialState = () => ({
   devices: [],
   deviceTypes: [],
   operationLogs: [],
@@ -201,8 +223,8 @@ const initialState = {
   locations: [],
   deliveryExceptions: [],
   deliverySubOrders: createDeliverySubOrderSeeds(),
-  issueRecords: createIssuePoolSeeds(),
-  afterSalesOrders: createAfterSalesOrderSeeds() as AfterSalesOrder[],
+  issueRecords: restorePrototypeRecords<IssueRecord>(ISSUE_STORAGE_KEY, createIssuePoolSeeds),
+  afterSalesOrders: restorePrototypeRecords<AfterSalesOrder>(AFTER_SALES_STORAGE_KEY, createAfterSalesOrderSeeds),
   users: [],
   currentUser: '',
   currentUserId: '',
@@ -212,7 +234,7 @@ const initialState = {
   projectCenterError: '',
   projectTypes: [],
   productionSteps: [],
-};
+});
 
 function appReducer(state, action) {
   switch (action.type) {
@@ -414,7 +436,7 @@ function appReducer(state, action) {
 }
 
 export function AppProvider({ children }) {
-  const [state, baseDispatch] = useReducer(appReducer, initialState);
+  const [state, baseDispatch] = useReducer(appReducer, undefined, createInitialState);
   const { currentUser, isAuthenticated } = useRole();
   const location = useLocation();
   const productionLoaded = useRef('');
@@ -422,6 +444,12 @@ export function AppProvider({ children }) {
   const erpLinksLoaded = useRef(false);
   const productionRequestVersion = useRef(0);
   const projectRequestVersion = useRef(0);
+  useEffect(() => {
+    persistPrototypeRecords(ISSUE_STORAGE_KEY, state.issueRecords);
+  }, [state.issueRecords]);
+  useEffect(() => {
+    persistPrototypeRecords(AFTER_SALES_STORAGE_KEY, state.afterSalesOrders);
+  }, [state.afterSalesOrders]);
   const dispatch = useCallback((action) => {
     if (action.type === 'UPDATE_DEVICE_CONFIRMED') {
       return updateProductionDevice(action.payload.id, action.payload)

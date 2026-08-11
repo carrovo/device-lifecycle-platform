@@ -29,6 +29,9 @@ export type AfterSalesOrder = {
   actualSolution?: string;
   finalResult?: string;
   involvesReplacement?: boolean;
+  replacementMaterialName?: string;
+  replacementOldSn?: string;
+  replacementNewSn?: string;
   replacementBefore?: string;
   replacementAfter?: string;
   replacementNote?: string;

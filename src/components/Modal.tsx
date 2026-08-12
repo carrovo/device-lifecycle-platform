@@ -7,9 +7,10 @@ interface ModalProps extends PropsWithChildren {
   onClose: () => void;
   title: string;
   size?: ModalSize;
+  mobile?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, size = 'md', mobile = false }: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -32,7 +33,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
-      <div className={`relative bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.25)] border border-[#ececec] w-full ${sizeClass} max-h-[calc(100vh-2rem)] flex flex-col`}>
+      <div className={`relative box-border bg-white rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.25)] border border-[#ececec] w-full ${mobile ? 'sm:max-w-[calc(430px-2rem)]' : sizeClass} max-h-[calc(100vh-2rem)] flex flex-col`}>
         <div className="flex flex-shrink-0 items-center justify-between px-5 py-3.5 border-b border-[#f0f0f0]">
           <h2 className="text-[15px] font-semibold text-gray-900">{title}</h2>
           <button

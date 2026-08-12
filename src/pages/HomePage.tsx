@@ -2,13 +2,11 @@ import { Card, Chip, Section } from '../components/ui';
 
 const STAGES = [
   { title: '生产制造', desc: '设备建档、生产流转、测试结果及返修 / 换件信息沉淀。', current: true },
-  { title: '入库与设备履历', desc: 'ERP 产品入库关联、设备台账与单台设备详情。', current: true },
-  { title: '项目交付', desc: '项目、点位、设备归属与轻量交付执行。', current: true },
-  { title: '运营售后', desc: '交付异常、问题处理与售后管理。', current: false },
-  { title: '质量分析与持续改进', desc: '质量追溯、数据统计与看板分析。', current: false },
+  { title: '入库与设备履历', desc: 'ERP 产品入库关联、设备台账及单台设备履历。', current: true },
+  { title: '项目交付', desc: '项目、点位、交付批次、交付子工单及 FAE 现场执行。', current: true },
+  { title: '问题与售后', desc: '现场问题提报、问题池处理、技术支持与售后工单执行。', current: true },
+  { title: '质量跟进与分析', desc: '问题根因、长期解决方案、闭环跟进及质量 / 售后看板分析。', current: true },
 ];
-
-const PLANNED = ['交付管理深化', '售后管理', '看板分析', '系统管理增强', '物料零部件追溯评估'];
 
 export default function HomePage() {
   return (
@@ -28,7 +26,7 @@ export default function HomePage() {
                 <div className={`w-48 border rounded-lg p-4 ${stage.current ? 'border-gray-300 bg-white' : 'border-gray-200 bg-gray-50'}`}>
                   <h2 className={`text-[13px] font-semibold break-keep leading-5 min-h-10 ${stage.current ? 'text-gray-800' : 'text-gray-500'}`}>{stage.title}</h2>
                   <div className="mt-2">
-                    <Chip className="whitespace-nowrap" tone={stage.current ? 'solid' : 'neutral'}>{stage.current ? '当前已覆盖' : '规划中'}</Chip>
+                    <Chip className="whitespace-nowrap" tone={stage.current ? 'solid' : 'neutral'}>当前已覆盖</Chip>
                   </div>
                   <p className={`text-xs leading-5 mt-3 ${stage.current ? 'text-gray-500' : 'text-gray-400'}`}>{stage.desc}</p>
                 </div>
@@ -38,29 +36,15 @@ export default function HomePage() {
           </div>
         </Section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-800">当前重点建设</h2>
-              <Chip tone="solid">重点建设</Chip>
-            </div>
-            <p className="text-[13px] text-gray-600 leading-6 mt-3">
-              当前版本重点打通设备 SN 主线，覆盖设备建档、生产流转、ERP 产品入库关联、设备详情、项目点位和轻量交付执行，形成基础追溯链路。
-            </p>
-          </Card>
-          <Card className="bg-gray-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-700">后续规划能力</h2>
-              <Chip>规划中</Chip>
-            </div>
-            <p className="text-[13px] text-gray-500 leading-6 mt-3">
-              后续将逐步补充交付管理深化、售后管理、看板分析和系统管理增强等能力。
-            </p>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {PLANNED.map((item) => <Chip key={item} className="text-gray-400">{item}</Chip>)}
-            </div>
-          </Card>
-        </div>
+        <Card>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">平台当前范围</h2>
+            <Chip tone="solid">当前已覆盖</Chip>
+          </div>
+          <p className="text-[13px] text-gray-600 leading-6 mt-3">
+            当前平台围绕设备 SN 建立统一追溯主线，覆盖设备生产、ERP 关联、设备履历、项目交付、FAE 现场执行、问题提报、售后处理和质量跟进，形成设备从生产到交付、售后和质量追溯的统一信息链路。
+          </p>
+        </Card>
 
         <Section title="数据边界" subtitle="ERP、飞书与平台各自承接明确职责">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -74,7 +58,7 @@ export default function HomePage() {
             </div>
             <div>
               <h2 className="text-[13px] font-semibold text-gray-800">平台</h2>
-              <p className="text-xs text-gray-500 leading-5 mt-2">维护设备档案、生产关键结果、来源链接、项目点位和轻量交付执行。</p>
+              <p className="text-xs text-gray-500 leading-5 mt-2">维护设备档案、生产关键结果、来源链接、项目交付、问题、售后和质量追溯信息。</p>
             </div>
           </div>
         </Section>

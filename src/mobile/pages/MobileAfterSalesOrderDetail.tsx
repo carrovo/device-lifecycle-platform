@@ -92,7 +92,7 @@ export default function MobileAfterSalesOrderDetail() {
       {(readOnly || order.status === '待分派') && <ReadOnlyResult order={order} issue={issue} />}
     </div>
     {!readOnly && order.status === '待接单' && !confirmAccept && <footer className="fixed bottom-0 left-0 right-0 z-10 mx-auto w-full border-t border-gray-200 bg-white p-3 sm:max-w-[430px]"><button type="button" onClick={() => setConfirmAccept(true)} className="min-h-12 w-full rounded-md bg-gray-900 text-sm font-medium text-white">确认接单</button></footer>}
-    <Modal isOpen={confirmAccept} onClose={() => setConfirmAccept(false)} title="确认接单"><div className="space-y-4"><p className="text-sm text-gray-700">确认接单后，工单将进入待上门。</p><DetailRows items={[["操作人", state.currentUser || '当前用户'], ['接单时间', '由系统自动记录']]} /><div className="flex gap-2"><button type="button" className="min-h-11 flex-1 rounded-md border border-gray-300 text-sm text-gray-600" onClick={() => setConfirmAccept(false)}>取消</button><button type="button" className="min-h-11 flex-1 rounded-md bg-gray-900 text-sm font-medium text-white" onClick={accept}>确认接单</button></div></div></Modal>
+    <Modal mobile isOpen={confirmAccept} onClose={() => setConfirmAccept(false)} title="确认接单"><div className="space-y-4"><p className="text-sm text-gray-700">确认接单后，工单将进入待上门。</p><DetailRows items={[["操作人", state.currentUser || '当前用户'], ['接单时间', '由系统自动记录']]} /><div className="flex gap-2"><button type="button" className="min-h-11 flex-1 rounded-md border border-gray-300 text-sm text-gray-600" onClick={() => setConfirmAccept(false)}>取消</button><button type="button" className="min-h-11 flex-1 rounded-md bg-gray-900 text-sm font-medium text-white" onClick={accept}>确认接单</button></div></div></Modal>
   </MobileFrame>;
 }
 

@@ -6,6 +6,7 @@ import { Btn, DescList, Page, PageHeader, Section, StatCard, StatGrid, Table } f
 import { createClientId } from '../data/clientId';
 import { nowText } from '../data/dateTime';
 import { batchDisplayName } from '../data/deliveryV2';
+import { prototypeNavEnabled } from '../config/prototypeFeatures';
 import {
   acceptanceProgress, activeSubOrderBlock, canStartDeviceAcceptance, deploymentCompletionReasons, deploymentReadyToComplete, deviceAcceptancePrerequisites,
   hasTaskExecutionBlock, installationProgress, preparationReady, requiredExecutionRemaining, subOrderMaterialCount, subOrderNodeLabel, subOrderTypeLabel,
@@ -194,7 +195,7 @@ export default function DeliverySubOrderDetail() {
   const issueDevice = modal?.record ? deviceForRecord(modal.record) : deviceOptions[0];
 
   return <Page>
-    <PageHeader breadcrumb={<div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>交付执行</Link><span>/</span><span>交付子工单</span></div>} title={subOrder.name} description={`${subOrderTypeLabel(subOrder.type)} · ${location?.name || '—'}`} actions={import.meta.env.DEV ? <Btn as="link" to={`/mobile/delivery/${subOrder.id}`}>移动端预览</Btn> : undefined} />
+    <PageHeader breadcrumb={<div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>交付执行</Link><span>/</span><span>交付子工单</span></div>} title={subOrder.name} description={`${subOrderTypeLabel(subOrder.type)} · ${location?.name || '—'}`} actions={prototypeNavEnabled ? <Btn as="link" to={`/mobile/delivery/${subOrder.id}`}>移动端查看</Btn> : undefined} />
     {notice && <div className="flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="关闭提示">×</button></div>}
     <div className="flex flex-wrap items-center gap-2"><StatusBadge status={subOrder.status} /><span className="text-xs text-gray-500">当前节点：{currentNodeLabel}</span>{subOrder.type === 'deployment' && <span className="text-xs text-gray-500">执行工程师：{subOrder.engineer || '尚未分派'}</span>}</div>
     <SubOrderTaskGuide subOrder={subOrder} onPrimary={handlePrimary} onBlock={() => setModal({ type: 'block', node: subOrder.currentNode, nodeLabel: currentNodeLabel })} onBlockProgress={() => activeBlock && setModal({ type: 'block-progress', block: activeBlock })} />

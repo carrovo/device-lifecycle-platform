@@ -8,6 +8,7 @@ import { AttachmentList, AttachmentUpload } from '../components/AttachmentUpload
 import { afterSalesCloseReasons, afterSalesGuidance, type AfterSalesOrder } from '../data/afterSalesOrders';
 import { createClientId } from '../data/clientId';
 import { nowText } from '../data/dateTime';
+import { prototypeNavEnabled } from '../config/prototypeFeatures';
 import { ISSUE_CAUSE_LEVEL_1, ISSUE_CAUSE_LEVEL_2, ISSUE_CAUSE_LEVEL_3, technicalSupportDecisionLabel } from '../data/issuePool';
 import { CategorySelect } from '../components/issues/IssueRecordModal';
 
@@ -50,7 +51,7 @@ export default function AfterSalesOrderDetail() {
   };
 
   return <Page>
-    <PageHeader title={order.orderNo} description="查看售后现场处理进展和来源问题。" breadcrumb={<div className="mb-1 text-xs text-gray-400"><Link className="ui-link" to="/after-sales?tab=orders">售后工单</Link> / {order.orderNo}</div>} actions={<div className="flex gap-2">{import.meta.env.DEV && <Btn as="link" to={`/mobile/after-sales/${order.id}`}>移动端预览</Btn>}<Btn as="link" to="/after-sales?tab=orders">返回售后工单</Btn></div>} />
+    <PageHeader title={order.orderNo} description="查看售后现场处理进展和来源问题。" breadcrumb={<div className="mb-1 text-xs text-gray-400"><Link className="ui-link" to="/after-sales?tab=orders">售后工单</Link> / {order.orderNo}</div>} actions={<div className="flex gap-2">{prototypeNavEnabled && <Btn as="link" to={`/mobile/after-sales/${order.id}`}>移动端查看</Btn>}<Btn as="link" to="/after-sales?tab=orders">返回售后工单</Btn></div>} />
     {message && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{message}</div>}
     <Section title="当前待办" subtitle="按当前阶段完成一个主要操作；来源问题与售后执行状态分别维护。" right={!readOnly && guidance.action !== 'none' ? <Btn variant="primary" onClick={primary}>{guidance.label}</Btn> : <StatusBadge status={order.status} />}>
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]"><Stepper steps={STEPS} current={order.status === '已取消' ? 0 : order.status} /><div className="space-y-2 text-[13px]"><div><span className="text-gray-400">当前待办：</span><b className="text-gray-800">{guidance.task}</b></div><div><span className="text-gray-400">尚未满足：</span>{guidance.unmet.length ? guidance.unmet.join('、') : '—'}</div><div><span className="text-gray-400">下一阶段：</span>{guidance.next || '—'}</div><div><span className="text-gray-400">当前售后工程师：</span>{dash(order.engineer)}</div></div></div>

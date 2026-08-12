@@ -6,6 +6,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { useApp } from '../../context/AppContext';
 import { createClientId } from '../../data/clientId';
 import { nowText } from '../../data/dateTime';
+import { prototypeNavEnabled } from '../../config/prototypeFeatures';
 import {
   acceptanceProgress,
   deploymentCompletionReasons,
@@ -117,7 +118,7 @@ export default function MobileDeliveryOrderDetail() {
   const selectedBlock = (modal?.type === 'block-progress' || modal?.type === 'block-resolve') ? subOrder.blocks.find((item) => item.id === modal.blockId) : undefined;
 
   return <MobileFrame>
-    <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3"><button type="button" aria-label="返回我的任务" onClick={() => navigate('/mobile/tasks?tab=delivery')} className="grid h-9 w-9 place-items-center rounded-md text-lg text-gray-600 hover:bg-gray-100">‹</button><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-gray-900">{subOrder.name}</p><p className="mt-0.5 text-xs text-gray-400">{subOrderTypeLabel(subOrder.type)}</p></div>{import.meta.env.DEV && <Link to={`/delivery-plans/${subOrder.deliveryPlanId}/sub-orders/${subOrder.id}`} className="shrink-0 text-xs text-gray-500 underline underline-offset-2">PC端预览</Link>}<StatusBadge status={subOrder.status} /></header>
+    <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3"><button type="button" aria-label="返回我的任务" onClick={() => navigate('/mobile/tasks?tab=delivery')} className="grid h-9 w-9 place-items-center rounded-md text-lg text-gray-600 hover:bg-gray-100">‹</button><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-gray-900">{subOrder.name}</p><p className="mt-0.5 text-xs text-gray-400">{subOrderTypeLabel(subOrder.type)}</p></div>{prototypeNavEnabled && <Link to={`/delivery-plans/${subOrder.deliveryPlanId}/sub-orders/${subOrder.id}`} className="shrink-0 text-xs text-gray-500 underline underline-offset-2">PC端查看</Link>}<StatusBadge status={subOrder.status} /></header>
     <div className="space-y-3 p-4 pb-28">
       {feedback && <Feedback>{feedback}</Feedback>}
       <Section title="任务信息"><DetailRows items={[["项目", project?.name || '—'], ['点位', location?.name || '—'], [subOrder.type === 'deployment' ? '执行工程师' : '当前负责人', subOrder.type === 'deployment' ? subOrder.engineer || '尚未分派' : subOrder.owner || '—'], ['计划时间', subOrder.plannedTime?.replace('T', ' ') || '—'], ['任务说明', subOrder.notes || '—']]} /></Section>

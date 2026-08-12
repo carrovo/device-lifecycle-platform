@@ -8,6 +8,7 @@ import { useApp } from '../../context/AppContext';
 import { afterSalesCloseReasons, type AfterSalesMaterial, type AfterSalesOrder } from '../../data/afterSalesOrders';
 import { createClientId } from '../../data/clientId';
 import { nowText } from '../../data/dateTime';
+import { prototypeNavEnabled } from '../../config/prototypeFeatures';
 import { ISSUE_CAUSE_LEVEL_1, ISSUE_CAUSE_LEVEL_2, ISSUE_CAUSE_LEVEL_3, type IssueRecord } from '../../data/issuePool';
 
 const dash = (value?: string) => value || '—';
@@ -64,7 +65,7 @@ export default function MobileAfterSalesOrderDetail() {
   };
 
   return <MobileFrame>
-    <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3"><button type="button" aria-label="返回我的任务" onClick={() => navigate('/mobile/tasks')} className="grid h-9 w-9 place-items-center rounded-md text-lg text-gray-600 hover:bg-gray-100">‹</button><div className="min-w-0 flex-1"><p className="truncate font-mono text-xs font-semibold text-gray-900">{order.orderNo}</p><p className="mt-0.5 text-xs text-gray-400">售后现场执行</p></div>{import.meta.env.DEV && <Link className="shrink-0 text-xs text-gray-500 underline underline-offset-2" to={`/after-sales/orders/${order.id}`}>PC端预览</Link>}<StatusBadge status={order.status} /></header>
+    <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3"><button type="button" aria-label="返回我的任务" onClick={() => navigate('/mobile/tasks')} className="grid h-9 w-9 place-items-center rounded-md text-lg text-gray-600 hover:bg-gray-100">‹</button><div className="min-w-0 flex-1"><p className="truncate font-mono text-xs font-semibold text-gray-900">{order.orderNo}</p><p className="mt-0.5 text-xs text-gray-400">售后现场执行</p></div>{prototypeNavEnabled && <Link className="shrink-0 text-xs text-gray-500 underline underline-offset-2" to={`/after-sales/orders/${order.id}`}>PC端查看</Link>}<StatusBadge status={order.status} /></header>
     <div className="space-y-3 p-4 pb-28">
       {notice && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</div>}
       <Section title="工单信息"><DetailRows items={[

@@ -5,7 +5,7 @@ import { useRole } from './RoleContext';
 import { createOperationLog, getOperationLogs } from '../api/system';
 import { getBusinessDictionaries } from '../api/dictionaries';
 import { configureProductionSteps } from '../data/prdV12';
-import { createDeliverySubOrderSeeds } from '../data/deliverySubOrders';
+import { createDeliverySubOrderSeeds, type DeliverySubOrder } from '../data/deliverySubOrders';
 import { createIssuePoolSeeds, type IssueRecord } from '../data/issuePool';
 import { createAfterSalesOrderSeeds, type AfterSalesOrder } from '../data/afterSalesOrders';
 import { createClientId } from '../data/clientId';
@@ -53,6 +53,7 @@ const AppContext = createContext<any>(null);
 const arrayOrEmpty = (value) => Array.isArray(value) ? value : [];
 const ISSUE_STORAGE_KEY = 'device-lifecycle-prototype-issues-v1';
 const AFTER_SALES_STORAGE_KEY = 'device-lifecycle-prototype-after-sales-v1';
+const DELIVERY_SUB_ORDERS_STORAGE_KEY = 'device-lifecycle-prototype-delivery-sub-orders-v1';
 
 function restorePrototypeRecords<T>(key: string, fallback: () => T[]) {
   try {
@@ -222,7 +223,7 @@ const createInitialState = () => ({
   deliveryPlans: [],
   locations: [],
   deliveryExceptions: [],
-  deliverySubOrders: createDeliverySubOrderSeeds(),
+  deliverySubOrders: restorePrototypeRecords<DeliverySubOrder>(DELIVERY_SUB_ORDERS_STORAGE_KEY, createDeliverySubOrderSeeds),
   issueRecords: restorePrototypeRecords<IssueRecord>(ISSUE_STORAGE_KEY, createIssuePoolSeeds),
   afterSalesOrders: restorePrototypeRecords<AfterSalesOrder>(AFTER_SALES_STORAGE_KEY, createAfterSalesOrderSeeds),
   users: [],
@@ -450,6 +451,9 @@ export function AppProvider({ children }) {
   useEffect(() => {
     persistPrototypeRecords(AFTER_SALES_STORAGE_KEY, state.afterSalesOrders);
   }, [state.afterSalesOrders]);
+  useEffect(() => {
+    persistPrototypeRecords(DELIVERY_SUB_ORDERS_STORAGE_KEY, state.deliverySubOrders);
+  }, [state.deliverySubOrders]);
   const dispatch = useCallback((action) => {
     if (action.type === 'UPDATE_DEVICE_CONFIRMED') {
       return updateProductionDevice(action.payload.id, action.payload)

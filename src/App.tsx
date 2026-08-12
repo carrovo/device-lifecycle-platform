@@ -19,6 +19,9 @@ import AfterSalesIssues from './pages/AfterSalesIssues';
 import AfterSalesOrderDetail from './pages/AfterSalesOrderDetail';
 import MobileTasksPage from './mobile/pages/MobileTasksPage';
 import MobileAfterSalesOrderDetail from './mobile/pages/MobileAfterSalesOrderDetail';
+import MobileDeliveryOrderDetail from './mobile/pages/MobileDeliveryOrderDetail';
+import MobileDeliveryDeviceDetail from './mobile/pages/MobileDeliveryDeviceDetail';
+import MobileIssueCreate from './mobile/pages/MobileIssueCreate';
 import SystemPage from './pages/SystemPage';
 import AccessDeniedPage from './pages/AccessDeniedPage';
 import { useRole } from './context/RoleContext';
@@ -55,6 +58,9 @@ function AppRoutes() {
           <Route path="/mobile" element={<Navigate to="/mobile/tasks" replace />} />
           <Route path="/mobile/tasks" element={<MobileTasksPage />} />
           <Route path="/mobile/after-sales/:id" element={<MobileAfterSalesOrderDetail />} />
+          <Route path="/mobile/delivery/:id" element={<MobileDeliveryOrderDetail />} />
+          <Route path="/mobile/delivery/:id/device/:deviceId" element={<MobileDeliveryDeviceDetail />} />
+          <Route path="/mobile/issues/new" element={<MobileIssueCreate />} />
           <Route path="*" element={<Navigate to="/mobile/tasks" replace />} />
         </Routes>
       </PageErrorBoundary>

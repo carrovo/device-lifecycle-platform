@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import StatusBadge from '../StatusBadge';
 import { StatCard, StatGrid, Table } from '../ui';
 import { AttachmentList } from '../AttachmentUpload';
-import { acceptanceProgress, installationProgress, type DeliverySubOrder } from '../../data/deliverySubOrders';
+import { acceptanceProgress, deviceAcceptancePrerequisites, installationProgress, type DeliverySubOrder } from '../../data/deliverySubOrders';
 import { batchDisplayName } from '../../data/deliveryV2';
 
 export default function SubOrderDevicePanel({ subOrder, issues, plan, state, onInstallation, onAcceptance, onIssue }: { subOrder: DeliverySubOrder; issues: any[]; plan: any; state: any; onInstallation: (record: any) => void; onAcceptance: (record: any) => void; onIssue: (record?: any) => void }) {
@@ -10,7 +10,7 @@ export default function SubOrderDevicePanel({ subOrder, issues, plan, state, onI
   const acceptanceDone = acceptanceProgress(subOrder);
   const readOnly = subOrder.status === '已完成';
   const installationEditable = subOrder.status === '执行中';
-  const acceptanceEditable = subOrder.status === '待设备验收';
+  const acceptanceEditable = ['执行中', '待设备验收'].includes(subOrder.status);
   const issueEditable = installationEditable || acceptanceEditable;
   const linkedIssueRows = (subOrder.issueLinks || []).flatMap((link) => issues.find((item) => item.id === link.issueId) ? [{ link, issue: issues.find((item) => item.id === link.issueId) }] : []);
   const unresolvedDeviceCount = new Set(linkedIssueRows.filter((item) => item.issue.isClosed !== '是').map((item) => item.link.deviceId)).size;
@@ -23,9 +23,10 @@ export default function SubOrderDevicePanel({ subOrder, issues, plan, state, onI
         const batch = plan.batches.find((item) => item.id === record.batchId);
         const linkedIssues = (subOrder.issueLinks || []).filter((item) => item.deviceId === record.deviceId).map((link) => ({ link, issue: issues.find((item) => item.id === link.issueId) })).filter((item) => item.issue);
         const openIssues = linkedIssues.filter((item) => item.issue.isClosed !== '是');
+        const acceptanceReady = deviceAcceptancePrerequisites(subOrder, record).ready;
         return <tr key={record.id} className="hover:bg-[#fafafa]">
           <td className="px-3 py-2 font-mono text-xs">{device?.robotNo || '—'}</td><td className="px-3 py-2"><Link className="ui-link font-mono text-xs" to={`/devices/${device?.id}?tab=project`}>{device?.sn || '—'}</Link></td><td className="px-3 py-2 text-gray-600">{state.deviceTypes.find((item) => item.id === device?.deviceTypeId)?.name || '—'}</td><td className="px-3 py-2 text-gray-600">{batch ? batchDisplayName(batch) : '—'}</td><td className="px-3 py-2"><StatusBadge status={record.installationStatus} /><p className="mt-1 text-xs text-gray-500">{record.installationNote || '—'}</p></td><td className="px-3 py-2">{record.acceptanceResult ? <StatusBadge status={record.acceptanceResult} /> : <span className="text-gray-400">未记录</span>}<p className="mt-1 text-xs text-gray-500">{record.acceptanceNote || '—'}</p></td><td className="px-3 py-2 text-xs">{linkedIssues.length ? linkedIssues.map(({ link, issue }) => <div key={link.id}><Link className="ui-link font-mono" to={`/after-sales?issue=${encodeURIComponent(issue.id)}`}>{issue.issueNo}</Link></div>) : '—'}</td><td className="px-3 py-2 text-xs">{openIssues.length ? <span className="text-amber-700">{openIssues.length} 条未闭环</span> : <span className="text-gray-500">无</span>}</td><td className="min-w-44 px-3 py-2"><AttachmentList items={record.materials} empty="—" /></td>
-          <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-3">{installationEditable && <button className="ui-link text-[13px]" onClick={() => onInstallation(record)}>记录安装调试进度</button>}{acceptanceEditable && record.installationStatus === '已完成' && <button className="ui-link text-[13px]" onClick={() => onAcceptance(record)}>填写验收结果</button>}{issueEditable && <button className="ui-link text-[13px] text-red-600" onClick={() => onIssue(record)}>提交设备问题</button>}</div>{acceptanceEditable && record.installationStatus !== '已完成' && <span className="text-xs text-gray-400">需先完成安装调试</span>}{!installationEditable && !acceptanceEditable && !readOnly && <span className="text-xs text-gray-400">当前阶段只读</span>}{readOnly && <span className="text-xs text-gray-400">已完成，只读</span>}</td>
+          <td className="px-3 py-2 whitespace-nowrap"><div className="flex gap-3">{installationEditable && <button className="ui-link text-[13px]" onClick={() => onInstallation(record)}>记录安装调试进度</button>}{acceptanceEditable && acceptanceReady && <button className="ui-link text-[13px]" onClick={() => onAcceptance(record)}>填写验收结果</button>}{issueEditable && <button className="ui-link text-[13px] text-red-600" onClick={() => onIssue(record)}>提交设备问题</button>}</div>{acceptanceEditable && !acceptanceReady && <span className="text-xs text-gray-400">{deviceAcceptancePrerequisites(subOrder, record).reasons[0] || '当前暂不能验收'}</span>}{!installationEditable && !acceptanceEditable && !readOnly && <span className="text-xs text-gray-400">当前阶段只读</span>}{readOnly && <span className="text-xs text-gray-400">已完成，只读</span>}</td>
         </tr>;
       })}
     </Table>

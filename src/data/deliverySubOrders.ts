@@ -240,6 +240,16 @@ export function canStartDeviceAcceptance(subOrder: DeliverySubOrder) {
   return { ready: reasons.length === 0, reasons };
 }
 
+export function deviceAcceptancePrerequisites(subOrder: DeliverySubOrder, record: DeliverySubOrder['devices'][number]) {
+  const reasons: string[] = [];
+  if (!['执行中', '待设备验收'].includes(subOrder.status)) reasons.push('当前尚未进入现场执行阶段');
+  if (hasTaskExecutionBlock(subOrder)) reasons.push('存在未解除的整单执行阻塞');
+  const required = requiredExecutionRemaining(subOrder);
+  if (required.length) reasons.push(`还有 ${required.length} 项必填公共事项未完成`);
+  if (record.installationStatus !== '已完成') reasons.push('当前设备尚未完成安装调试');
+  return { ready: reasons.length === 0, reasons };
+}
+
 export function deploymentCompletionReasons(subOrder: DeliverySubOrder, _issues: Array<{ id: string; isClosed: string }> = []) {
   const reasons: string[] = [];
   if (subOrder.devices.some((item) => item.installationStatus !== '已完成')) reasons.push('仍有设备未完成安装调试');

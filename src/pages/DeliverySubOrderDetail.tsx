@@ -7,7 +7,7 @@ import { createClientId } from '../data/clientId';
 import { nowText } from '../data/dateTime';
 import { batchDisplayName } from '../data/deliveryV2';
 import {
-  acceptanceProgress, activeSubOrderBlock, canStartDeviceAcceptance, deploymentCompletionReasons, deploymentReadyToComplete,
+  acceptanceProgress, activeSubOrderBlock, canStartDeviceAcceptance, deploymentCompletionReasons, deploymentReadyToComplete, deviceAcceptancePrerequisites,
   hasTaskExecutionBlock, installationProgress, preparationReady, requiredExecutionRemaining, subOrderMaterialCount, subOrderNodeLabel, subOrderTypeLabel,
   type DeliverySubOrder, type ReviewMaterial,
 } from '../data/deliverySubOrders';
@@ -138,7 +138,7 @@ export default function DeliverySubOrderDetail() {
   };
 
   const saveAcceptance = (record, form) => {
-    if (subOrder.status !== '待设备验收' || record.installationStatus !== '已完成' || hasTaskExecutionBlock(subOrder)) return;
+    if (!deviceAcceptancePrerequisites(subOrder, record).ready) return;
     if (form.acceptanceResult === '未通过' && !form.relatedIssueId) return setNotice('未通过验收必须关联当前设备的正式问题池记录。');
     const device = state.devices.find((item) => item.id === record.deviceId);
     commit((order) => ({ ...order, devices: order.devices.map((item) => item.id === record.id ? { ...item, acceptanceResult: form.acceptanceResult, acceptanceNote: form.acceptanceNote.trim(), materials: form.materialName.trim() ? [...item.materials, makeMaterial(form)] : item.materials, acceptanceHistory: [...(item.acceptanceHistory || []), { id: createClientId('DSOACC'), time: time(), operator, from: item.acceptanceResult || '未记录', to: form.acceptanceResult, note: form.acceptanceNote.trim(), issueId: form.relatedIssueId || undefined }] } : item) }), '保存设备验收结果', `${device?.sn || record.deviceId} 验收结果：${record.acceptanceResult || '未记录'} → ${form.acceptanceResult}${form.relatedIssueId ? `；关联问题 ${state.issueRecords.find((item) => item.id === form.relatedIssueId)?.issueNo || form.relatedIssueId}` : ''}`, `${device?.sn || '设备'}验收结果已保存`, { deviceId: record.deviceId, issueId: form.relatedIssueId || undefined });
@@ -194,7 +194,7 @@ export default function DeliverySubOrderDetail() {
   const issueDevice = modal?.record ? deviceForRecord(modal.record) : deviceOptions[0];
 
   return <Page>
-    <PageHeader breadcrumb={<div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>交付执行</Link><span>/</span><span>交付子工单</span></div>} title={subOrder.name} description={`${subOrderTypeLabel(subOrder.type)} · ${location?.name || '—'}`} />
+    <PageHeader breadcrumb={<div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1"><Link className="ui-link" to={returnTo}>交付执行</Link><span>/</span><span>交付子工单</span></div>} title={subOrder.name} description={`${subOrderTypeLabel(subOrder.type)} · ${location?.name || '—'}`} actions={import.meta.env.DEV ? <Btn as="link" to={`/mobile/delivery/${subOrder.id}`}>移动端预览</Btn> : undefined} />
     {notice && <div className="flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700"><span>{notice}</span><button onClick={() => setNotice('')} aria-label="关闭提示">×</button></div>}
     <div className="flex flex-wrap items-center gap-2"><StatusBadge status={subOrder.status} /><span className="text-xs text-gray-500">当前节点：{currentNodeLabel}</span>{subOrder.type === 'deployment' && <span className="text-xs text-gray-500">执行工程师：{subOrder.engineer || '尚未分派'}</span>}</div>
     <SubOrderTaskGuide subOrder={subOrder} onPrimary={handlePrimary} onBlock={() => setModal({ type: 'block', node: subOrder.currentNode, nodeLabel: currentNodeLabel })} onBlockProgress={() => activeBlock && setModal({ type: 'block-progress', block: activeBlock })} />

@@ -70,29 +70,21 @@ export function afterSalesCloseReasons(order: AfterSalesOrder) {
     !order.engineer && '尚未分派售后工程师',
     !order.acceptedAt && '售后工程师尚未接单',
     !order.actualVisitAt && '尚未记录实际上门时间',
-    !order.onsiteHandling?.trim() && '尚未填写现场处理说明',
     !order.actualSolution?.trim() && '尚未填写实际处理方案',
-    !order.finalResult?.trim() && '尚未填写最终处理结果',
-    !order.closeNote?.trim() && '尚未填写关单说明',
+    order.involvesReplacement && !order.replacementMaterialName?.trim() && '尚未填写物料名称',
+    order.involvesReplacement && !order.replacementOldSn?.trim() && '尚未填写旧物料 SN',
+    order.involvesReplacement && !order.replacementNewSn?.trim() && '尚未填写新物料 SN',
     !order.materials.some((item) => /视频|证明|处理结果/.test(`${item.name} ${item.purpose}`)) && '尚未添加正常工作视频或处理结果证明资料',
-  ].filter(Boolean) as string[];
-}
-
-export function afterSalesHandlingReasons(order: AfterSalesOrder) {
-  return [
-    !order.onsiteHandling?.trim() && '尚未填写现场处理说明',
-    !order.actualSolution?.trim() && '尚未填写实际处理方案',
-    !order.finalResult?.trim() && '尚未填写最终处理结果',
   ].filter(Boolean) as string[];
 }
 
 export function afterSalesGuidance(order: AfterSalesOrder) {
   if (order.status === '待分派') return { task: '分派售后工程师', unmet: ['尚未分派售后工程师'], next: '等待工程师接单', action: 'assign', label: '分派售后工程师' };
   if (order.status === '待接单') return { task: '等待售后工程师接单', unmet: ['工程师尚未接单'], next: '安排预计上门时间', action: 'accept', label: '确认接单' };
-  if (order.status === '待上门') return order.plannedVisitAt ? { task: '确认已到现场', unmet: [], next: '记录现场处理', action: 'arrive', label: '确认已到现场' } : { task: '设置预计上门时间', unmet: ['尚未设置预计上门时间'], next: '确认工程师已到现场', action: 'plan-visit', label: '设置预计上门时间' };
+  if (order.status === '待上门') return order.plannedVisitAt ? { task: '确认已到现场', unmet: [], next: '完成现场处理并关单', action: 'arrive', label: '确认已到现场' } : { task: '设置预计上门时间', unmet: ['尚未设置预计上门时间'], next: '确认工程师已到现场', action: 'plan-visit', label: '设置预计上门时间' };
   if (order.status === '现场处理中') {
-    const missing = afterSalesHandlingReasons(order);
-    return missing.length ? { task: '记录现场处理', unmet: missing, next: '满足条件后关单', action: 'handle', label: '记录现场处理' } : { task: '完成并关单', unmet: [], next: '工单切换为只读', action: 'close', label: '完成并关单' };
+    const missing = afterSalesCloseReasons(order);
+    return { task: '完成处理并关单', unmet: missing, next: '工单切换为只读', action: 'close', label: '完成处理并关单' };
   }
   return { task: order.status === '已关单' ? '查看已关单工单' : '查看已取消工单', unmet: [], next: '', action: 'none', label: '' };
 }
